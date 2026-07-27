@@ -18,9 +18,12 @@ DIGEST_SIZE = 10
 # даже если кандидатов не хватает. Лучше короткий выпуск, чем выпуск с мусором.
 MIN_SCORE = 6.0
 
-# Модели: дешёвая для скоринга сотен заголовков, сильная для текстов дайджеста
-SCORING_MODEL = "claude-haiku-4-5-20251001"
-WRITING_MODEL = "claude-sonnet-5"
+# Модели OpenAI: дешёвая для скоринга сотен заголовков, сильная для текстов.
+# Названия версий меняются часто — проверь доступные своему ключу командой
+#   python main.py --models
+# и поправь, если этих в списке нет.
+SCORING_MODEL = "gpt-5.6-luna"
+WRITING_MODEL = "gpt-5.6-terra"
 
 # Сколько заголовков отправлять в одном запросе на скоринг
 SCORING_BATCH_SIZE = 40
@@ -76,13 +79,17 @@ RSS_FEEDS = [
 
     # AI
     ("OpenAI", "https://openai.com/news/rss.xml"),
-    # Если эта лента отдаёт 404 — проверь актуальный адрес и поправь или удали
-    ("Anthropic", "https://www.anthropic.com/news/rss.xml"),
+    # У Anthropic официального RSS нет. Это неофициальное зеркало от сообщества:
+    # может сломаться в любой момент, тогда просто удали строку — релизы
+    # Anthropic всё равно попадают в TechCrunch и на Hacker News.
+    ("Anthropic", "https://tim-hilde.github.io/anthropic-rss/rss.xml"),
     ("Google DeepMind", "https://deepmind.google/blog/rss.xml"),
     ("Google Research", "https://research.google/blog/rss/"),
     ("Hugging Face", "https://huggingface.co/blog/feed.xml"),
     ("MIT Tech Review AI", "https://www.technologyreview.com/topic/artificial-intelligence/feed"),
-    ("Import AI", "https://importai.substack.com/feed"),
+    # Import AI убран: Substack режет запросы с серверных IP независимо от
+    # User-Agent. С домашнего компьютера лента открывается, с VPS — нет.
+    ("The Batch (deeplearning.ai)", "https://www.deeplearning.ai/the-batch/rss.xml"),
 
     # Инженерные блоги
     ("GitHub Blog", "https://github.blog/feed/"),

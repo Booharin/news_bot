@@ -70,9 +70,19 @@ def main() -> int:
     parser.add_argument(
         "--collect", action="store_true", help="только сбор, без вызовов модели"
     )
+    parser.add_argument(
+        "--models", action="store_true", help="показать модели, доступные ключу"
+    )
     args = parser.parse_args()
 
     load_dotenv()
+
+    if args.models:
+        import llm
+
+        for name in llm.list_models():
+            print(name)
+        return 0
 
     if args.collect:
         items = dedupe.deduplicate(collect.collect_all())

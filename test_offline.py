@@ -102,6 +102,26 @@ def test_dedupe_merges_near_duplicate_headlines() -> None:
     assert len(dedupe.deduplicate(items)) == 1
 
 
+def test_ask_json_unwraps_object_wrapper() -> None:
+    """Режим json_object у OpenAI не умеет отдавать массив верхнего уровня,
+    поэтому промпты просят обёртку. Проверяем, что она разворачивается."""
+    import llm
+
+    original = llm.ask
+    try:
+        llm.ask = lambda *a, **kw: '{"scores": [{"id": 1, "score": 7}]}'
+        assert llm.ask_json("m", "p") == [{"id": 1, "score": 7}]
+
+        llm.ask = lambda *a, **kw: '{"groups": [[1], [2, 3]]}'
+        assert llm.ask_json("m", "p") == [[1], [2, 3]]
+
+        # Карточка новости — обычный объект, разворачивать нечего
+        llm.ask = lambda *a, **kw: '{"headline": "h", "what": "w", "why": ""}'
+        assert llm.ask_json("m", "p")["headline"] == "h"
+    finally:
+        llm.ask = original
+
+
 def test_format_escapes_html() -> None:
     news = item("Test", "https://example.com/a&b", "TechCrunch")
     news.card = {

@@ -1,4 +1,4 @@
-"""Тонкая обёртка над Claude API: один клиент и надёжный разбор JSON."""
+"""Тонкая обёртка над OpenAI API: один клиент и надёжный разбор JSON."""
 
 from __future__ import annotations
 
@@ -7,44 +7,75 @@ import logging
 import os
 import re
 
-import anthropic
+from openai import OpenAI
 
 log = logging.getLogger(__name__)
 
-_client: anthropic.Anthropic | None = None
+_client: OpenAI | None = None
 
 
-def client() -> anthropic.Anthropic:
+def client() -> OpenAI:
     global _client
     if _client is None:
-        key = os.environ.get("ANTHROPIC_API_KEY")
+        key = os.environ.get("OPENAI_API_KEY")
         if not key:
-            raise RuntimeError("Не задан ANTHROPIC_API_KEY — проверь файл .env")
-        _client = anthropic.Anthropic(api_key=key)
+            raise RuntimeError("Не задан OPENAI_API_KEY — проверь файл .env")
+        _client = OpenAI(api_key=key)
     return _client
 
 
-def ask(model: str, prompt: str, max_tokens: int = 4096, system: str = "") -> str:
+def list_models() -> list[str]:
+    """Какие модели доступны твоему ключу. Названия версий меняются часто."""
+    return sorted(model.id for model in client().models.list())
+
+
+def ask(
+    model: str,
+    prompt: str,
+    max_tokens: int = 4096,
+    system: str = "",
+    json_mode: bool = False,
+) -> str:
+    messages = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": prompt})
+
     kwargs = {
         "model": model,
-        "max_tokens": max_tokens,
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": messages,
+        "max_completion_tokens": max_tokens,
     }
-    if system:
-        kwargs["system"] = system
+    if json_mode:
+        # Гарантирует синтаксически валидный JSON на выходе
+        kwargs["response_format"] = {"type": "json_object"}
 
-    response = client().messages.create(**kwargs)
-    return "".join(block.text for block in response.content if block.type == "text")
+    response = client().chat.completions.create(**kwargs)
+    return response.choices[0].message.content or ""
 
 
 def ask_json(model: str, prompt: str, max_tokens: int = 4096, system: str = ""):
-    """Как ask, но вытаскивает JSON из ответа.
+    """Как ask, но возвращает разобранный JSON.
 
-    Модель иногда оборачивает JSON в ```json ... ``` или добавляет пояснение —
-    поэтому не полагаемся на чистый json.loads.
+    Режим json_object требует объект верхнего уровня, поэтому промпты просят
+    обёртку вида {"scores": [...]}. Если пришёл словарь с единственным ключом
+    и списком внутри — разворачиваем список.
     """
-    raw = ask(model, prompt, max_tokens=max_tokens, system=system).strip()
+    raw = ask(
+        model, prompt, max_tokens=max_tokens, system=system, json_mode=True
+    ).strip()
 
+    data = _loads(raw)
+
+    if isinstance(data, dict) and len(data) == 1:
+        only_value = next(iter(data.values()))
+        if isinstance(only_value, list):
+            return only_value
+
+    return data
+
+
+def _loads(raw: str):
     fenced = re.search(r"```(?:json)?\s*(.+?)\s*```", raw, re.DOTALL)
     if fenced:
         raw = fenced.group(1)
@@ -52,7 +83,6 @@ def ask_json(model: str, prompt: str, max_tokens: int = 4096, system: str = ""):
     try:
         return json.loads(raw)
     except json.JSONDecodeError:
-        # Последняя попытка: берём самый внешний массив или объект
         match = re.search(r"[\[{].*[\]}]", raw, re.DOTALL)
         if match:
             try:

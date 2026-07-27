@@ -32,7 +32,8 @@ cp .env.example .env
 
 Заполни `.env`:
 
-**ANTHROPIC_API_KEY** — на console.anthropic.com, раздел API Keys.
+**OPENAI_API_KEY** — на platform.openai.com/api-keys. Нужен пополненный
+баланс, минимальный платёж $5.
 
 **TELEGRAM_BOT_TOKEN** — напиши [@BotFather](https://t.me/BotFather), команда
 `/newbot`, придумай имя. Токен придёт в ответ.
@@ -45,6 +46,7 @@ cp .env.example .env
 
 ```bash
 python main.py --collect    # что нашлось в источниках, без обращений к модели
+python main.py --models     # какие модели доступны твоему ключу
 python main.py --dry-run    # полный дайджест в консоль, без отправки
 python main.py              # боевой прогон
 python test_offline.py      # тесты логики, сеть и ключи не нужны
@@ -75,7 +77,7 @@ python test_offline.py      # тесты логики, сеть и ключи н
 ```bash
 fly launch --no-deploy
 fly volumes create digest_data --size 1
-fly secrets set ANTHROPIC_API_KEY=... TELEGRAM_BOT_TOKEN=... TELEGRAM_CHAT_ID=...
+fly secrets set OPENAI_API_KEY=... TELEGRAM_BOT_TOKEN=... TELEGRAM_CHAT_ID=...
 fly deploy
 ```
 
@@ -96,9 +98,9 @@ fly deploy
 
 ## Сколько стоит
 
-Хостинг около $5 в месяц. Claude API при одном прогоне в сутки — доллар-два
-в месяц: скоринг 500 заголовков на Haiku стоит центы, десяток карточек на
-Sonnet тоже. Остальные API бесплатные и без ключей.
+Хостинг около $5 в месяц. OpenAI API при одном прогоне в сутки — доллар-два
+в месяц: скоринг 500 заголовков идёт на дешёвой модели, дорогая работает
+только с десятком финалистов. Остальные API бесплатные и без ключей.
 
 ## Известные ограничения
 
