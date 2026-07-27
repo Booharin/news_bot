@@ -86,7 +86,7 @@ def _write_card(item: Item) -> None:
     )
     try:
         result = llm.ask_json(
-            config.WRITING_MODEL, prompt, max_tokens=1024, system=SYSTEM
+            config.WRITING_MODEL, prompt, max_tokens=2048, system=SYSTEM
         )
         item.card = {
             "headline": str(result.get("headline", item.title)).strip(),

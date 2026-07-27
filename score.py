@@ -68,8 +68,10 @@ def score_items(items: list[Item]) -> list[Item]:
         )
 
         try:
+            # Потолок с запасом: модели тратят часть бюджета на рассуждения,
+            # при тесном лимите ответ приходит обрезанным
             result = llm.ask_json(
-                config.SCORING_MODEL, prompt, max_tokens=4096, system=SYSTEM
+                config.SCORING_MODEL, prompt, max_tokens=8192, system=SYSTEM
             )
         except Exception as exc:
             # Падение одного батча не должно ронять весь дайджест
@@ -141,7 +143,7 @@ def merge_related(items: list[Item]) -> list[Item]:
         groups = llm.ask_json(
             config.SCORING_MODEL,
             MERGE_PROMPT.format(items=listing),
-            max_tokens=2048,
+            max_tokens=4096,
         )
     except Exception as exc:
         log.warning("Смысловая склейка пропущена: %s", exc)
