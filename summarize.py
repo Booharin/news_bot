@@ -41,7 +41,7 @@ PROMPT = """Напиши карточку новости для дайджест
 
 Верни ТОЛЬКО JSON:
 {{
-  "headline": "заголовок своими словами по-русски, одно предложение без кликбейта",
+  "headline": "заголовок по-русски, НЕ ДЛИННЕЕ 80 СИМВОЛОВ, без кликбейта",
   "what": "что произошло — 1-2 предложения с конкретикой: цифры, названия, версии",
   "why": "почему это важно — одно предложение, или пустая строка если сказать нечего"
 }}"""
@@ -96,6 +96,45 @@ def _write_card(item: Item) -> None:
     except Exception as exc:
         log.error("Карточка не написана для %s: %s", item.url, exc)
         item.card = ""
+
+
+TRANSLATE_PROMPT = """Переведи заголовки новостей на русский язык.
+
+{items}
+
+Пиши коротко и по делу, без кликбейта. Названия компаний и продуктов оставляй
+латиницей. Верни ТОЛЬКО JSON вида {{"titles": ["перевод 1", "перевод 2"]}}
+в том же порядке и том же количестве."""
+
+
+def translate_titles(items: list[Item]) -> None:
+    """Переводит заголовки для блока «Ещё мельком».
+
+    Один дешёвый вызов на весь блок: писать для них полные карточки незачем,
+    но и оставлять английские строки в русском дайджесте не хочется.
+    """
+    if not items:
+        return
+
+    listing = "\n".join(f"{i}. {item.title}" for i, item in enumerate(items, 1))
+
+    try:
+        titles = llm.ask_json(
+            config.SCORING_MODEL,
+            TRANSLATE_PROMPT.format(items=listing),
+            max_tokens=2048,
+        )
+    except Exception as exc:
+        log.warning("Заголовки не переведены, останутся как есть: %s", exc)
+        return
+
+    if not isinstance(titles, list) or len(titles) != len(items):
+        log.warning("Перевод вернул %s строк вместо %d", len(titles), len(items))
+        return
+
+    for item, title in zip(items, titles):
+        if isinstance(title, str) and title.strip():
+            item.title = title.strip()
 
 
 def write_cards(items: list[Item]) -> list[Item]:

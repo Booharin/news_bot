@@ -87,9 +87,8 @@ RSS_FEEDS = [
     ("Google Research", "https://research.google/blog/rss/"),
     ("Hugging Face", "https://huggingface.co/blog/feed.xml"),
     ("MIT Tech Review AI", "https://www.technologyreview.com/topic/artificial-intelligence/feed"),
-    # Import AI убран: Substack режет запросы с серверных IP независимо от
-    # User-Agent. С домашнего компьютера лента открывается, с VPS — нет.
-    ("The Batch (deeplearning.ai)", "https://www.deeplearning.ai/the-batch/rss.xml"),
+    # Import AI и The Batch убраны: первый режется Substack по серверным IP,
+    # второй отдаёт 500. Покрытие AI-новостей и так избыточное.
 
     # Инженерные блоги
     ("GitHub Blog", "https://github.blog/feed/"),

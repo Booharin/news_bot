@@ -59,6 +59,7 @@ def build_digest() -> tuple[list, list]:
     extras = shortlist[config.DIGEST_SIZE : config.DIGEST_SIZE + 4]
 
     top = summarize.write_cards(top)
+    summarize.translate_titles(extras)
     return top, extras
 
 
