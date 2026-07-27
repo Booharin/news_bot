@@ -27,6 +27,12 @@ logging.basicConfig(
     format="%(asctime)s  %(levelname)-7s %(message)s",
     datefmt="%H:%M:%S",
 )
+
+# httpx логирует полный URL каждого запроса — в случае Telegram это означает
+# токен бота открытым текстом в journalctl. Оставляем только предупреждения:
+# заодно лог становится читаемым, там и так видно, какие ленты отвалились.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
 log = logging.getLogger("digest")
 
 
