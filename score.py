@@ -105,3 +105,80 @@ def score_items(items: list[Item]) -> list[Item]:
         shortlist[0].score if shortlist else 0,
     )
     return shortlist
+
+
+# ------------------------------------------------- смысловая склейка дублей
+
+MERGE_PROMPT = """Ниже список новостей за сутки. Некоторые описывают одно и то же
+событие разными словами — например "Amazon хочет развернуть 5105 спутников" и
+"Amazon запускает глобальную спутниковую сеть к 2028" это одна новость.
+
+{items}
+
+Сгруппируй новости по событиям. Верни ТОЛЬКО JSON — массив массивов с id:
+[[1], [2, 7, 9], [3], [4, 5]]
+
+Каждый id должен встретиться ровно один раз. Объединяй только если это
+действительно одно событие. Две разные новости про одну компанию — это
+две новости, а не одна."""
+
+
+def merge_related(items: list[Item]) -> list[Item]:
+    """Дособирает дубли, которые не поймала склейка по словам.
+
+    Работает по шортлисту (десятки штук), а не по всему потоку — один дешёвый
+    вызов. Ловит случаи вроде "Kimi K3 открытые веса" и "Kimi-K3 Technical
+    Report", где общих слов почти нет, но событие одно.
+    """
+    if len(items) < 2:
+        return items
+
+    listing = "\n".join(
+        f"{idx}. [{item.source}] {item.title}" for idx, item in enumerate(items, 1)
+    )
+
+    try:
+        groups = llm.ask_json(
+            config.SCORING_MODEL,
+            MERGE_PROMPT.format(items=listing),
+            max_tokens=2048,
+        )
+    except Exception as exc:
+        log.warning("Смысловая склейка пропущена: %s", exc)
+        return items
+
+    result: list[Item] = []
+    used: set[int] = set()
+
+    for group in groups:
+        if not isinstance(group, list):
+            continue
+        members = []
+        for raw_id in group:
+            try:
+                idx = int(raw_id) - 1
+            except (TypeError, ValueError):
+                continue
+            if 0 <= idx < len(items) and idx not in used:
+                used.add(idx)
+                members.append(items[idx])
+        if not members:
+            continue
+
+        # Представителем берём новость с большим баллом
+        members.sort(key=lambda i: i.score, reverse=True)
+        best = members[0]
+        for other in members[1:]:
+            best.duplicates.append(other)
+            best.duplicates.extend(other.duplicates)
+        result.append(best)
+
+    # Подстраховка: если модель кого-то потеряла, возвращаем его как есть
+    for idx, item in enumerate(items):
+        if idx not in used:
+            result.append(item)
+
+    result.sort(key=lambda i: i.score, reverse=True)
+    if len(result) < len(items):
+        log.info("Смысловая склейка: %d -> %d событий", len(items), len(result))
+    return result

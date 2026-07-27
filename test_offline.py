@@ -9,6 +9,7 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
+import collect
 import dedupe
 import deliver
 import storage
@@ -59,6 +60,46 @@ def test_dedupe_keeps_different_events_apart() -> None:
         item("Neo raises $100M for AI security", "https://b.com/2", "TechCrunch"),
     ]
     assert len(dedupe.deduplicate(items)) == 2
+
+
+def test_junk_filter_catches_listicles() -> None:
+    junk = [
+        "Best wireless headphones for 2026",
+        "How to Clear The Cache On Your Roku TV",
+        "What's the difference between USB 3.0 and 2.0?",
+        "Nanoleaf's colorful pegboard and shelf kit is half off",
+        "Everything you need to know about the Pixel 11",
+    ]
+    for title in junk:
+        assert collect._is_junk(title), f"не отсеклось: {title}"
+
+
+def test_junk_filter_keeps_real_news() -> None:
+    real = [
+        "Antares raises $470M to build nuclear reactors for the US military",
+        "Moonshot AI releases Kimi K3 open weights",
+        "Google Pixel 11 launch event: Everything we expect as price rumors grow",
+        "Framework Laptop 13 Pro review: Much better battery, much worse price",
+    ]
+    for title in real:
+        assert not collect._is_junk(title), f"ложное срабатывание: {title}"
+
+
+def test_clean_decodes_entities() -> None:
+    # Ленты отдают мнемоники, в дайджест они попадать не должны
+    assert "’" in collect._clean("Nanoleaf&#8217;s kit")
+    assert "&#" not in collect._clean("Amazon&#8217;s network")
+
+
+def test_dedupe_merges_near_duplicate_headlines() -> None:
+    # Реальная пара, которую прежний порог 0.6 пропускал
+    items = [
+        item("YouTube Premium will soon include Peacock at no extra cost",
+             "https://a.com/1", "Engadget"),
+        item("YouTube Premium will include Peacock starting next year",
+             "https://b.com/2", "The Verge"),
+    ]
+    assert len(dedupe.deduplicate(items)) == 1
 
 
 def test_format_escapes_html() -> None:

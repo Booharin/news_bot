@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
+from html import unescape
 from urllib.parse import urlparse
 
 import feedparser
@@ -37,13 +39,21 @@ def _entry_time(entry) -> datetime | None:
     return None
 
 
-def _clean(text: str, limit: int = 400) -> str:
-    """Выкидывает HTML-теги из описания и подрезает длину."""
-    import re
+_JUNK_RE = [re.compile(p, re.IGNORECASE) for p in config.JUNK_TITLE_PATTERNS]
 
+
+def _clean(text: str, limit: int = 400) -> str:
+    """Выкидывает HTML-теги и мнемоники из описания, подрезает длину."""
     text = re.sub(r"<[^>]+>", " ", text or "")
+    # Ленты часто отдают &#8217; и подобное — иначе это лезет в дайджест
+    text = unescape(text)
     text = re.sub(r"\s+", " ", text).strip()
     return text[:limit]
+
+
+def _is_junk(title: str) -> bool:
+    """Гайды, подборки и распродажи — до скоринга, чтобы не жечь токены."""
+    return any(pattern.search(title) for pattern in _JUNK_RE)
 
 
 # --------------------------------------------------------------------- RSS
@@ -72,7 +82,7 @@ def _fetch_feed(name: str, url: str, cutoff: datetime) -> list[Item]:
 
         link = entry.get("link") or ""
         title = _clean(entry.get("title", ""), limit=300)
-        if not link or not title or _is_blocked(link):
+        if not link or not title or _is_blocked(link) or _is_junk(title):
             continue
 
         items.append(

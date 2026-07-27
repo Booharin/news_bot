@@ -51,6 +51,10 @@ def build_digest() -> tuple[list, list]:
     if not shortlist:
         return [], []
 
+    # Второй проход по дублям: склейка по словам не ловит статьи об одном
+    # событии с непохожими заголовками
+    shortlist = score.merge_related(shortlist)
+
     top = shortlist[: config.DIGEST_SIZE]
     extras = shortlist[config.DIGEST_SIZE : config.DIGEST_SIZE + 4]
 

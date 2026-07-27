@@ -14,8 +14,12 @@ from models import Item
 
 log = logging.getLogger(__name__)
 
-# Порог схожести заголовков, выше которого считаем, что событие одно
-SIMILARITY_THRESHOLD = 0.6
+# Порог схожести заголовков, выше которого считаем, что событие одно.
+# Подобран на реальной выборке: 0.6 пропускал очевидные пары вроде
+# "YouTube Premium will soon include Peacock" и "YouTube Premium will include
+# Peacock starting next year". Ниже 0.55 опускать бессмысленно — оставшиеся
+# дубли различаются формулировками, а не словами, их ловит merge_related().
+SIMILARITY_THRESHOLD = 0.55
 
 # Слова, которые не несут смысла при сравнении заголовков
 STOPWORDS = {

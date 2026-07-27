@@ -75,8 +75,9 @@ RSS_FEEDS = [
     ("Stratechery", "https://stratechery.com/feed/"),
 
     # AI
-    ("OpenAI", "https://openai.com/blog/rss.xml"),
-    ("Anthropic", "https://www.anthropic.com/rss.xml"),
+    ("OpenAI", "https://openai.com/news/rss.xml"),
+    # Если эта лента отдаёт 404 — проверь актуальный адрес и поправь или удали
+    ("Anthropic", "https://www.anthropic.com/news/rss.xml"),
     ("Google DeepMind", "https://deepmind.google/blog/rss.xml"),
     ("Google Research", "https://research.google/blog/rss/"),
     ("Hugging Face", "https://huggingface.co/blog/feed.xml"),
@@ -112,7 +113,24 @@ BLOCKED_DOMAINS = {
     "hackernoon.com",
 }
 
+# Мусорные заголовки: гайды, подборки и распродажи, которые издания
+# публикуют потоком. Отсекаются до скоринга — не тратим на них токены.
+JUNK_TITLE_PATTERNS = [
+    r"^(the )?best .{0,60}\b(for |of |in )?20\d\d",   # Best wireless headphones for 2026
+    r"^how to\b",                                      # How to Clear The Cache On Your Roku TV
+    r"^what('s| is| are)\b.{0,40}\bdifference\b",      # What's the difference between USB 3.0 & 2.0
+    r"\bis half off\b|\b\d{1,2}% off\b|\bdeal of the day\b",
+    r"^\d{1,2} (best|things|ways|tips)\b",
+    r"\bhere's how\b.{0,30}\bfix\b",                   # Here's how to fix it
+    r"^(everything|all) you need to know\b",
+]
+
 # Таймаут на сетевые запросы, секунды
 HTTP_TIMEOUT = 20
 
-USER_AGENT = "morning-digest/1.0 (personal news digest bot)"
+# Часть изданий (в частности Substack) отдаёт 403 роботам с честным
+# User-Agent. Представляемся браузером — иначе теряем живые ленты.
+USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+)
