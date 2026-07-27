@@ -1,0 +1,118 @@
+"""Настройки дайджеста: источники, профиль интересов, параметры отбора.
+
+Это единственный файл, который нужно править под себя.
+"""
+
+# ---------------------------------------------------------------- окно и объёмы
+
+# Сколько часов назад считать новость свежей
+WINDOW_HOURS = 24
+
+# Сколько кандидатов оставить после скоринга (для них тянется полный текст)
+SHORTLIST_SIZE = 25
+
+# Сколько новостей попадёт в итоговый дайджест
+DIGEST_SIZE = 10
+
+# Минимальный балл, ниже которого новость не попадёт в дайджест,
+# даже если кандидатов не хватает. Лучше короткий выпуск, чем выпуск с мусором.
+MIN_SCORE = 6.0
+
+# Модели: дешёвая для скоринга сотен заголовков, сильная для текстов дайджеста
+SCORING_MODEL = "claude-haiku-4-5-20251001"
+WRITING_MODEL = "claude-sonnet-5"
+
+# Сколько заголовков отправлять в одном запросе на скоринг
+SCORING_BATCH_SIZE = 40
+
+# ------------------------------------------------------------- профиль интересов
+
+# Этот текст подставляется в промпт скоринга. Пиши человеческим языком —
+# модель понимает нюансы лучше, чем список ключевых слов.
+INTEREST_PROFILE = """
+Приоритет 1 — стартапы, новые идеи, бизнес. Самое важное.
+  - новые продукты и компании, которых раньше не было; необычные бизнес-модели;
+    Show HN, Product Hunt, первые релизы
+  - раунды, M&A, смена стратегии или бизнес-модели, резкий рост или провал,
+    разворот продукта, уход основателей, закрытия
+  - сдвиги в индустрии и появление новых ниш
+  Интересны идеи и траектории компаний, а не финансовая отчётность корпораций.
+
+Приоритет 2 — AI и LLM. Релизы моделей (OpenAI, Anthropic, Google, Meta,
+  китайские лабы), значимые research-статьи, агенты, инструменты для
+  разработки с AI.
+
+Приоритет 3 — технологии и продукты. Любые заметные запуски и железо,
+  у любых компаний — от гигантов до незнакомых команд. Apple не выделяется.
+
+Приоритет 4 — разработка. Языки, инфраструктура, инженерные разборы,
+  заметные open source проекты.
+
+Не интересно совсем:
+  - политика, спорт, знаменитости, криминал — кроме случаев прямого влияния
+    на технологический рынок
+  - пресс-релизы без сути, listicles вида "10 лучших промптов", SEO-контент,
+    слухи без источника
+  - минорные обновления версий и косметические апдейты
+  - материалы про личную продуктивность и карьерные советы
+"""
+
+# ------------------------------------------------------------------- RSS-ленты
+
+RSS_FEEDS = [
+    # Общие технологические СМИ
+    ("TechCrunch", "https://techcrunch.com/feed/"),
+    ("The Verge", "https://www.theverge.com/rss/index.xml"),
+    ("Ars Technica", "https://feeds.arstechnica.com/arstechnica/index"),
+    ("Wired", "https://www.wired.com/feed/rss"),
+    ("Engadget", "https://www.engadget.com/rss.xml"),
+
+    # Стартапы, венчур, бизнес
+    ("Crunchbase News", "https://news.crunchbase.com/feed/"),
+    ("Tech Startups", "https://techstartups.com/feed/"),
+    ("Sifted", "https://sifted.eu/feed"),
+    ("VentureBeat", "https://venturebeat.com/feed/"),
+    ("Stratechery", "https://stratechery.com/feed/"),
+
+    # AI
+    ("OpenAI", "https://openai.com/blog/rss.xml"),
+    ("Anthropic", "https://www.anthropic.com/rss.xml"),
+    ("Google DeepMind", "https://deepmind.google/blog/rss.xml"),
+    ("Google Research", "https://research.google/blog/rss/"),
+    ("Hugging Face", "https://huggingface.co/blog/feed.xml"),
+    ("MIT Tech Review AI", "https://www.technologyreview.com/topic/artificial-intelligence/feed"),
+    ("Import AI", "https://importai.substack.com/feed"),
+
+    # Инженерные блоги
+    ("GitHub Blog", "https://github.blog/feed/"),
+    ("Cloudflare Blog", "https://blog.cloudflare.com/rss/"),
+    ("Stripe Blog", "https://stripe.com/blog/feed.rss"),
+    ("Vercel Blog", "https://vercel.com/atom"),
+    ("Netflix Tech", "https://netflixtechblog.com/feed"),
+    ("Simon Willison", "https://simonwillison.net/atom/everything/"),
+]
+
+# --------------------------------------------------------------- Hacker News
+
+# Минимум очков, чтобы история с HN попала в кандидаты.
+# Show HN отбирается отдельно и с более низким порогом — там важна новизна,
+# а не популярность.
+HN_MIN_POINTS = 80
+HN_SHOW_MIN_POINTS = 15
+
+# Сколько историй запрашивать максимум
+HN_MAX_STORIES = 120
+
+# ------------------------------------------------------------------ прочее
+
+# Домены, которые никогда не попадают в дайджест (агрегаторы, контент-фермы)
+BLOCKED_DOMAINS = {
+    "medium.com",
+    "dev.to",
+    "hackernoon.com",
+}
+
+# Таймаут на сетевые запросы, секунды
+HTTP_TIMEOUT = 20
+
+USER_AGENT = "morning-digest/1.0 (personal news digest bot)"

@@ -1,0 +1,15 @@
+# Секреты — никогда не в репозиторий
+.env
+
+# База с историей отправленного
+*.db
+
+# Python
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# macOS
+.DS_Store
