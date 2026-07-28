@@ -119,6 +119,15 @@ BLOCKED_DOMAINS = {
     "medium.com",
     "dev.to",
     "hackernoon.com",
+    # Соцсети: текст оттуда не вытащить, а карточка выходит пустой
+    "twitter.com",
+    "x.com",
+    "threads.net",
+    "reddit.com",
+    # Жёсткий paywall — статью скачать не получится
+    "bloomberg.com",
+    "wsj.com",
+    "ft.com",
 }
 
 # Мусорные заголовки: гайды, подборки и распродажи, которые издания

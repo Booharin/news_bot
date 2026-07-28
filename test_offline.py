@@ -85,6 +85,15 @@ def test_junk_filter_keeps_real_news() -> None:
         assert not collect._is_junk(title), f"ложное срабатывание: {title}"
 
 
+def test_blocked_domains_cover_subdomains() -> None:
+    assert collect._is_blocked("https://twitter.com/a/status/1")
+    assert collect._is_blocked("https://www.bloomberg.com/news/a")
+    assert collect._is_blocked("https://old.reddit.com/r/startups")
+    assert not collect._is_blocked("https://techcrunch.com/2026/07/28/x")
+    # Не должно ловить домены, лишь заканчивающиеся так же
+    assert not collect._is_blocked("https://notreddit.com/a")
+
+
 def test_clean_decodes_entities() -> None:
     # Ленты отдают мнемоники, в дайджест они попадать не должны
     assert "’" in collect._clean("Nanoleaf&#8217;s kit")

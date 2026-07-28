@@ -16,6 +16,12 @@ log = logging.getLogger(__name__)
 
 MAX_ARTICLE_CHARS = 6000
 
+# Минимальная длина текста, при которой есть смысл писать карточку.
+# Если статью не удалось скачать (paywall, 403), в article_text остаётся
+# огрызок из ленты — модель на нём сочиняет пустышку вида "на Hacker News
+# обсуждают материал о...". Такие пункты лучше выбросить целиком.
+MIN_ARTICLE_CHARS = 300
+
 SYSTEM = """Ты пишешь карточки новостей для утреннего дайджеста.
 
 Жёсткие правила:
@@ -67,7 +73,11 @@ def _fetch_article(item: Item) -> None:
         item.article_text = ""
 
     if not item.article_text:
-        item.article_text = item.summary
+        # Заглушка со ссылкой на обсуждение — не текст статьи, а мусор
+        if item.summary.startswith("Обсуждение на HN"):
+            item.article_text = ""
+        else:
+            item.article_text = item.summary
 
 
 def fetch_articles(items: list[Item]) -> None:
@@ -76,8 +86,9 @@ def fetch_articles(items: list[Item]) -> None:
 
 
 def _write_card(item: Item) -> None:
-    if not item.article_text.strip():
-        # Совсем нечего читать — обойдёмся оригинальным заголовком
+    if len(item.article_text.strip()) < MIN_ARTICLE_CHARS:
+        # Читать нечего — карточка получилась бы пустой по смыслу
+        log.info("Пропущено, нет текста статьи: %s", item.url)
         item.card = ""
         return
 

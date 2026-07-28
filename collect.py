@@ -26,8 +26,13 @@ def _cutoff() -> datetime:
 
 
 def _is_blocked(url: str) -> bool:
-    host = urlparse(url).netloc.lower().removeprefix("www.")
-    return host in config.BLOCKED_DOMAINS
+    host = urlparse(url).netloc.lower().split(":")[0]
+    # Сравниваем и по поддоменам: old.reddit.com должен блокироваться
+    # правилом reddit.com, а не проскакивать мимо него
+    return any(
+        host == domain or host.endswith("." + domain)
+        for domain in config.BLOCKED_DOMAINS
+    )
 
 
 def _entry_time(entry) -> datetime | None:
