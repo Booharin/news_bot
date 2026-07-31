@@ -13,7 +13,7 @@ import collect
 import dedupe
 import deliver
 import storage
-from models import Item
+from models import Item  # noqa: F401  (используется в хелперах ниже)
 
 
 def item(title: str, url: str, source: str, points: int = 0) -> Item:
@@ -83,6 +83,55 @@ def test_junk_filter_keeps_real_news() -> None:
     ]
     for title in real:
         assert not collect._is_junk(title), f"ложное срабатывание: {title}"
+
+
+def _scored(title: str, score_value: float, startup: bool) -> Item:
+    news = item(title, f"https://x.com/{title}", "TechCrunch")
+    news.score = score_value
+    news.is_startup = startup
+    return news
+
+
+def test_sections_do_not_overlap() -> None:
+    """Раздел про стартапы добавляет новости, а не повторяет главное."""
+    import score
+
+    items = [_scored(f"big{i}", 9.0, False) for i in range(5)]
+    items += [_scored(f"su{i}", 8.0, True) for i in range(10)]
+
+    main, startups = score.split_digest(items, main_size=10, startup_size=10)
+
+    assert len(main) == 10
+    main_urls = {i.url for i in main}
+    assert all(i.url not in main_urls for i in startups), "раздел дублирует главное"
+    # 5 стартапов попали в главное, ещё 5 остались на второй раздел
+    assert len(startups) == 5
+    assert all(i.is_startup for i in startups)
+
+
+def test_startup_section_empty_when_no_startups() -> None:
+    import score
+
+    items = [_scored(f"big{i}", 9.0, False) for i in range(10)]
+    main, startups = score.split_digest(items, main_size=5, startup_size=10)
+
+    assert len(main) == 5
+    assert startups == []
+
+
+def test_format_renders_two_sections() -> None:
+    news = item("a", "https://example.com/a", "TechCrunch")
+    news.card = {"headline": "Главная новость", "what": "Текст.", "why": ""}
+    su = item("b", "https://example.com/b", "Show HN")
+    su.card = {"headline": "Новый стартап", "what": "Текст.", "why": ""}
+
+    text = deliver.format_digest([news], None, [su])
+
+    assert "ГЛАВНОЕ" in text
+    assert "СТАРТАПЫ И НОВЫЕ ИДЕИ" in text
+    # Нумерация сквозная: второй раздел продолжает первый
+    assert "<b>1. Главная новость</b>" in text
+    assert "<b>2. Новый стартап</b>" in text
 
 
 def test_blocked_domains_cover_subdomains() -> None:

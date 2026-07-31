@@ -9,12 +9,17 @@
 WINDOW_HOURS = 24
 
 # Сколько кандидатов оставить после скоринга (для них тянется полный текст).
-# Должно быть заметно больше DIGEST_SIZE: часть кандидатов схлопнется при
+# Должно быть заметно больше суммы разделов: часть кандидатов схлопнется при
 # смысловой склейке, часть отвалится, если статью не удалось скачать.
-SHORTLIST_SIZE = 45
+SHORTLIST_SIZE = 80
 
-# Сколько новостей попадёт в итоговый дайджест
+# Первый раздел, «Главное» — лучшие новости по баллу, тема любая
 DIGEST_SIZE = 20
+
+# Второй раздел, «Стартапы и новые идеи» — только про новые компании, продукты,
+# раунды и сделки. Собирается из того, что не попало в первый раздел, поэтому
+# добавляет объём, а не переставляет местами уже отобранное.
+STARTUP_SECTION_SIZE = 20
 
 # Минимальный балл, ниже которого новость не попадёт в дайджест,
 # даже если кандидатов не хватает. Лучше короткий выпуск, чем выпуск с мусором.
@@ -72,12 +77,19 @@ RSS_FEEDS = [
     ("Wired", "https://www.wired.com/feed/rss"),
     ("Engadget", "https://www.engadget.com/rss.xml"),
 
-    # Стартапы, венчур, бизнес
+    # Стартапы, венчур, бизнес — главный приоритет, поэтому источников больше
     ("Crunchbase News", "https://news.crunchbase.com/feed/"),
     ("Tech Startups", "https://techstartups.com/feed/"),
     ("Sifted", "https://sifted.eu/feed"),
     ("VentureBeat", "https://venturebeat.com/feed/"),
     ("Stratechery", "https://stratechery.com/feed/"),
+    ("TechCrunch Startups", "https://techcrunch.com/category/startups/feed/"),
+    ("TechCrunch Venture", "https://techcrunch.com/category/venture/feed/"),
+    ("EU-Startups", "https://www.eu-startups.com/feed/"),
+    ("Tech.eu", "https://tech.eu/feed/"),
+    ("Product Hunt", "https://www.producthunt.com/feed"),
+    ("Y Combinator Blog", "https://www.ycombinator.com/blog/rss"),
+    ("TechCrunch Fintech", "https://techcrunch.com/category/fintech/feed/"),
 
     # AI
     ("OpenAI", "https://openai.com/news/rss.xml"),
@@ -107,7 +119,10 @@ RSS_FEEDS = [
 # Show HN отбирается отдельно и с более низким порогом — там важна новизна,
 # а не популярность.
 HN_MIN_POINTS = 80
-HN_SHOW_MIN_POINTS = 15
+# Show HN — это витрина новых проектов, ровно то, что нужно. Порог низкий:
+# хороший проект может собрать мало очков просто потому, что попал в неудачное
+# время суток, а нам важна новизна, а не популярность.
+HN_SHOW_MIN_POINTS = 8
 
 # Сколько историй запрашивать максимум
 HN_MAX_STORIES = 120

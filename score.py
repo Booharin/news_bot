@@ -35,8 +35,14 @@ PROMPT = """Профиль интересов человека:
 
 {items}
 
+Дополнительно для каждой новости укажи поле startup — true, если она относится
+к любому из этого: новая компания или продукт, запуск, выход из стелса, раунд
+финансирования, поглощение, смена бизнес-модели, резкий рост или закрытие
+компании, появление новой ниши. Для новостей про крупные корпорации ставь true
+только если речь о запуске нового продукта или сделке, а не о рутине.
+
 Верни ТОЛЬКО JSON вида:
-{{"scores": [{{"id": 1, "score": 7, "reason": "краткое обоснование, до 10 слов"}}]}}
+{{"scores": [{{"id": 1, "score": 7, "startup": true, "reason": "до 10 слов"}}]}}
 
 Обязательно верни запись для каждого id из списка."""
 
@@ -94,6 +100,7 @@ def score_items(items: list[Item]) -> list[Item]:
             except (TypeError, ValueError):
                 item.score = 0.0
             item.reason = str(entry.get("reason", ""))[:120]
+            item.is_startup = bool(entry.get("startup", False))
 
     ranked = sorted(items, key=lambda i: i.score, reverse=True)
     shortlist = [i for i in ranked if i.score >= config.MIN_SCORE][
@@ -107,6 +114,34 @@ def score_items(items: list[Item]) -> list[Item]:
         shortlist[0].score if shortlist else 0,
     )
     return shortlist
+
+
+# ------------------------------------------------------- отбор с квотой
+
+def split_digest(
+    items: list[Item], main_size: int, startup_size: int
+) -> tuple[list[Item], list[Item]]:
+    """Делит отобранное на два раздела: «Главное» и «Стартапы и новые идеи».
+
+    Первый раздел — просто лучшее по баллу, тема любая. Второй берёт лучшие
+    стартаповские новости из тех, что в первый не поместились. Раздел именно
+    добавляет объём: он не отбирает места у сильных новостей и не дублирует их.
+    """
+    ranked = sorted(items, key=lambda i: i.score, reverse=True)
+
+    main = ranked[:main_size]
+    chosen = {i.url for i in main}
+
+    startups = [i for i in ranked if i.is_startup and i.url not in chosen]
+    startups = startups[:startup_size]
+
+    log.info(
+        "Разделы: главное %d, стартапы %d (в главном стартапов %d)",
+        len(main),
+        len(startups),
+        sum(1 for i in main if i.is_startup),
+    )
+    return main, startups
 
 
 # ------------------------------------------------- смысловая склейка дублей

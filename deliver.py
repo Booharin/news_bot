@@ -26,20 +26,9 @@ def _esc(text: str) -> str:
     return html.escape(text, quote=False)
 
 
-def format_digest(items: list[Item], extras: list[Item] | None = None) -> str:
-    today = datetime.now()
-    date_str = f"{today.day} {MONTHS[today.month - 1]}"
-
-    if not items:
-        return (
-            f"<b>Дайджест за {date_str}</b>\n\n"
-            "Сегодня нечего показать — ничего существенного по твоим темам "
-            "за сутки не вышло."
-        )
-
-    parts = [f"<b>Дайджест за {date_str}</b>", ""]
-
-    for num, item in enumerate(items, start=1):
+def _render_items(items: list[Item], start_num: int = 1) -> list[str]:
+    parts = []
+    for num, item in enumerate(items, start=start_num):
         card = item.card
         block = [f"<b>{num}. {_esc(card['headline'])}</b>"]
 
@@ -53,6 +42,36 @@ def format_digest(items: list[Item], extras: list[Item] | None = None) -> str:
 
         parts.append("\n".join(block))
         parts.append("")
+    return parts
+
+
+def format_digest(
+    items: list[Item],
+    extras: list[Item] | None = None,
+    startups: list[Item] | None = None,
+) -> str:
+    today = datetime.now()
+    date_str = f"{today.day} {MONTHS[today.month - 1]}"
+
+    if not items and not startups:
+        return (
+            f"<b>Дайджест за {date_str}</b>\n\n"
+            "Сегодня нечего показать — ничего существенного по твоим темам "
+            "за сутки не вышло."
+        )
+
+    parts = [f"<b>Дайджест за {date_str}</b>", ""]
+
+    if items:
+        parts.append("<b>━━━ ГЛАВНОЕ ━━━</b>")
+        parts.append("")
+        parts.extend(_render_items(items))
+
+    if startups:
+        parts.append("<b>━━━ СТАРТАПЫ И НОВЫЕ ИДЕИ ━━━</b>")
+        parts.append("")
+        # Сквозная нумерация: так понятно, сколько всего прочитано
+        parts.extend(_render_items(startups, start_num=len(items) + 1))
 
     if extras:
         titles = "; ".join(_esc(i.title) for i in extras[:4])

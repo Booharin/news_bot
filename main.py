@@ -36,12 +36,12 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 log = logging.getLogger("digest")
 
 
-def build_digest() -> tuple[list, list]:
-    """Возвращает (топ для дайджеста, короткие упоминания)."""
+def build_digest() -> tuple[list, list, list]:
+    """Возвращает (главное, стартапы, короткие упоминания)."""
     items = collect.collect_all()
     if not items:
         log.warning("Источники ничего не вернули")
-        return [], []
+        return [], [], []
 
     items = dedupe.deduplicate(items)
 
@@ -55,18 +55,27 @@ def build_digest() -> tuple[list, list]:
 
     shortlist = score.score_items(items)
     if not shortlist:
-        return [], []
+        return [], [], []
 
     # Второй проход по дублям: склейка по словам не ловит статьи об одном
     # событии с непохожими заголовками
     shortlist = score.merge_related(shortlist)
 
-    top = shortlist[: config.DIGEST_SIZE]
-    extras = shortlist[config.DIGEST_SIZE : config.DIGEST_SIZE + 4]
+    top, startups = score.split_digest(
+        shortlist, config.DIGEST_SIZE, config.STARTUP_SECTION_SIZE
+    )
 
-    top = summarize.write_cards(top)
+    chosen = {i.url for i in top} | {i.url for i in startups}
+    extras = [i for i in shortlist if i.url not in chosen][:4]
+
+    # Карточки для обоих разделов одним заходом — так параллелизм эффективнее
+    written = summarize.write_cards(top + startups)
+    written_urls = {i.url for i in written}
+    top = [i for i in top if i.url in written_urls]
+    startups = [i for i in startups if i.url in written_urls]
+
     summarize.translate_titles(extras)
-    return top, extras
+    return top, startups, extras
 
 
 def main() -> int:
@@ -99,12 +108,12 @@ def main() -> int:
         return 0
 
     try:
-        top, extras = build_digest()
+        top, startups, extras = build_digest()
     except Exception:
         log.exception("Дайджест не собрался")
         return 1
 
-    text = deliver.format_digest(top, extras)
+    text = deliver.format_digest(top, extras, startups)
 
     if args.dry_run:
         print("\n" + text + "\n")
@@ -117,14 +126,17 @@ def main() -> int:
         return 1
 
     # Помечаем отправленное только после успешной доставки
-    pairs = [(i.url, dedupe.normalize_title(i.title)) for i in top]
-    for item in top:
+    sent = top + startups
+    pairs = [(i.url, dedupe.normalize_title(i.title)) for i in sent]
+    for item in sent:
         for dup in item.duplicates:
             pairs.append((dup.url, dedupe.normalize_title(dup.title)))
     storage.mark_sent(pairs)
     storage.prune()
 
-    log.info("Готово: %d новостей в выпуске", len(top))
+    log.info(
+        "Готово: %d в главном, %d про стартапы", len(top), len(startups)
+    )
     return 0
 
 
