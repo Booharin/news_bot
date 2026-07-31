@@ -119,6 +119,50 @@ def test_startup_section_empty_when_no_startups() -> None:
     assert startups == []
 
 
+def test_html_report_renders_both_sections() -> None:
+    import html_report
+
+    news = item("a", "https://example.com/a", "TechCrunch")
+    news.card = {"headline": "Главное <тут>", "what": "Текст & детали.", "why": "Важно."}
+    su = item("b", "https://example.com/b", "Show HN")
+    su.card = {"headline": "Стартап", "what": "Текст.", "why": ""}
+
+    page = html_report.render([news], [su])
+
+    assert page.startswith("<!DOCTYPE html>")
+    assert "Главное &lt;тут&gt;" in page, "угловые скобки не экранированы"
+    assert "Текст &amp; детали." in page
+    assert 'class="section startups"' in page
+    # Нумерация сквозная и двузначная
+    assert '<div class="num">01</div>' in page
+    assert '<div class="num">02</div>' in page
+    # Пустое why не рендерится
+    assert page.count('class="why"') == 1
+
+
+def test_telegram_number_is_a_link() -> None:
+    """Цвет в Telegram даёт только ссылка, поэтому номер кликабельный."""
+    news = item("a", "https://example.com/a", "TechCrunch")
+    news.card = {"headline": "Заголовок", "what": "Текст.", "why": "Важно."}
+
+    text = deliver.format_digest([news])
+
+    assert '<a href="https://example.com/a">01</a>' in text
+    assert "<blockquote>Почему важно: Важно.</blockquote>" in text
+
+
+def test_format_survives_missing_sections() -> None:
+    """В пустой день разделов может не быть — сборка не должна падать."""
+    assert "нечего показать" in deliver.format_digest([], None, None)
+    assert "нечего показать" in deliver.format_digest([], [], [])
+
+    su = item("b", "https://example.com/b", "Show HN")
+    su.card = {"headline": "Только стартап", "what": "Текст.", "why": ""}
+    text = deliver.format_digest([], None, [su])
+    assert "СТАРТАПЫ" in text
+    assert "ГЛАВНОЕ" not in text
+
+
 def test_format_renders_two_sections() -> None:
     news = item("a", "https://example.com/a", "TechCrunch")
     news.card = {"headline": "Главная новость", "what": "Текст.", "why": ""}
@@ -130,8 +174,8 @@ def test_format_renders_two_sections() -> None:
     assert "ГЛАВНОЕ" in text
     assert "СТАРТАПЫ И НОВЫЕ ИДЕИ" in text
     # Нумерация сквозная: второй раздел продолжает первый
-    assert "<b>1. Главная новость</b>" in text
-    assert "<b>2. Новый стартап</b>" in text
+    assert "<b>Главная новость</b>" in text
+    assert '<a href="https://example.com/b">02</a>' in text
 
 
 def test_blocked_domains_cover_subdomains() -> None:
@@ -192,7 +236,7 @@ def test_format_escapes_html() -> None:
     assert "&lt;Foo&gt;" in text, "угловые скобки не экранированы"
     assert "&amp;" in text, "амперсанд не экранирован"
     assert "Почему важно" not in text, "пустое why не должно печататься"
-    assert "<b>1." in text
+    assert "<b>Компания &lt;Foo&gt; купила Bar</b>" in text
 
 
 def test_format_empty_digest() -> None:

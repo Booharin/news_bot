@@ -18,6 +18,7 @@ import collect
 import config
 import dedupe
 import deliver
+import html_report
 import score
 import storage
 import summarize
@@ -117,6 +118,9 @@ def main() -> int:
 
     if args.dry_run:
         print("\n" + text + "\n")
+        if top or startups:
+            path = html_report.save(top, startups, extras)
+            log.info("HTML-версия сохранена: %s", path)
         return 0
 
     try:
@@ -124,6 +128,11 @@ def main() -> int:
     except Exception:
         log.exception("Отправка не удалась")
         return 1
+
+    # Файл — приятное дополнение, его неудача не должна ломать прогон
+    if top or startups:
+        path = html_report.save(top, startups, extras)
+        deliver.send_file(path, caption="Та же подборка в читаемом виде")
 
     # Помечаем отправленное только после успешной доставки
     sent = top + startups

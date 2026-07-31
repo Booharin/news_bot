@@ -26,19 +26,38 @@ def _esc(text: str) -> str:
     return html.escape(text, quote=False)
 
 
+def _plural(count: int, one: str, few: str, many: str) -> str:
+    """«1 материал», «2 материала», «5 материалов»."""
+    if count % 10 == 1 and count % 100 != 11:
+        return one
+    if 2 <= count % 10 <= 4 and not 12 <= count % 100 <= 14:
+        return few
+    return many
+
+
 def _render_items(items: list[Item], start_num: int = 1) -> list[str]:
     parts = []
     for num, item in enumerate(items, start=start_num):
         card = item.card
-        block = [f"<b>{num}. {_esc(card['headline'])}</b>"]
+        url = _esc(item.url)
+
+        # Единственный способ получить цвет в Telegram — ссылка: клиент красит
+        # её синим. Поэтому номер сам по себе кликабельный и ведёт на статью.
+        block = [
+            f'<a href="{url}">{num:02d}</a>  <b>{_esc(card["headline"])}</b>'
+        ]
 
         if card["what"]:
             block.append(_esc(card["what"]))
         if card["why"]:
-            block.append(f"<i>Почему важно:</i> {_esc(card['why'])}")
+            # blockquote рисует вертикальную полоску слева и подложку —
+            # это весь доступный визуальный акцент
+            block.append(
+                f"<blockquote>Почему важно: {_esc(card['why'])}</blockquote>"
+            )
 
         sources = ", ".join(item.all_sources[:3])
-        block.append(f'<a href="{_esc(item.url)}">{_esc(sources)}</a>')
+        block.append(f'<a href="{url}">{_esc(sources)}</a>')
 
         parts.append("\n".join(block))
         parts.append("")
@@ -50,6 +69,11 @@ def format_digest(
     extras: list[Item] | None = None,
     startups: list[Item] | None = None,
 ) -> str:
+    # Оба раздела необязательны, поэтому нормализуем до списков сразу:
+    # иначе len(None) роняет сборку в день, когда стартапов не нашлось
+    startups = startups or []
+    items = items or []
+
     today = datetime.now()
     date_str = f"{today.day} {MONTHS[today.month - 1]}"
 
@@ -60,15 +84,21 @@ def format_digest(
             "за сутки не вышло."
         )
 
-    parts = [f"<b>Дайджест за {date_str}</b>", ""]
+    total = len(items) + len(startups)
+    parts = [
+        f"<b>☕ Дайджест за {date_str}</b>",
+        f"<i>{total} {_plural(total, 'материал', 'материала', 'материалов')} · "
+        f"{len(items)} в главном, {len(startups)} про стартапы</i>",
+        "",
+    ]
 
     if items:
-        parts.append("<b>━━━ ГЛАВНОЕ ━━━</b>")
+        parts.append("<b>📰 ГЛАВНОЕ</b>")
         parts.append("")
         parts.extend(_render_items(items))
 
     if startups:
-        parts.append("<b>━━━ СТАРТАПЫ И НОВЫЕ ИДЕИ ━━━</b>")
+        parts.append("<b>🚀 СТАРТАПЫ И НОВЫЕ ИДЕИ</b>")
         parts.append("")
         # Сквозная нумерация: так понятно, сколько всего прочитано
         parts.extend(_render_items(startups, start_num=len(items) + 1))
@@ -99,14 +129,18 @@ def _split(text: str) -> list[str]:
     return chunks
 
 
-def send_to_telegram(text: str) -> None:
+def _credentials() -> tuple[str, str]:
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
     chat_id = os.environ.get("TELEGRAM_CHAT_ID")
     if not token or not chat_id:
         raise RuntimeError(
             "Не заданы TELEGRAM_BOT_TOKEN или TELEGRAM_CHAT_ID — проверь .env"
         )
+    return token, chat_id
 
+
+def send_to_telegram(text: str) -> None:
+    token, chat_id = _credentials()
     url = f"https://api.telegram.org/bot{token}/sendMessage"
 
     for chunk in _split(text):
@@ -125,3 +159,30 @@ def send_to_telegram(text: str) -> None:
             resp.raise_for_status()
 
     log.info("Дайджест отправлен в Telegram")
+
+
+def send_file(path, caption: str = "") -> None:
+    """Отправляет HTML-версию файлом.
+
+    Не критично для доставки: если файл не ушёл, текстовый дайджест уже
+    получен, поэтому исключение здесь не роняет прогон.
+    """
+    token, chat_id = _credentials()
+    url = f"https://api.telegram.org/bot{token}/sendDocument"
+
+    try:
+        with open(path, "rb") as handle:
+            files = {"document": (path.name, handle, "text/html")}
+            data = {"chat_id": chat_id, "caption": caption}
+            with httpx.Client(timeout=60) as client:
+                resp = client.post(url, data=data, files=files)
+
+        if resp.status_code != 200:
+            log.error("Файл не отправлен, Telegram вернул %s: %s",
+                      resp.status_code, resp.text)
+            return
+    except Exception as exc:
+        log.error("Файл не отправлен: %s", exc)
+        return
+
+    log.info("HTML-версия отправлена файлом")
