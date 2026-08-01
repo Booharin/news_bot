@@ -41,11 +41,7 @@ def _render_items(items: list[Item], start_num: int = 1) -> list[str]:
         card = item.card
         url = _esc(item.url)
 
-        # Единственный способ получить цвет в Telegram — ссылка: клиент красит
-        # её синим. Поэтому номер сам по себе кликабельный и ведёт на статью.
-        block = [
-            f'<a href="{url}">{num:02d}</a>  <b>{_esc(card["headline"])}</b>'
-        ]
+        block = [f'<b>{num:02d}  {_esc(card["headline"])}</b>']
 
         if card["what"]:
             block.append(_esc(card["what"]))
@@ -59,7 +55,9 @@ def _render_items(items: list[Item], start_num: int = 1) -> list[str]:
         sources = ", ".join(item.all_sources[:3])
         block.append(f'<a href="{url}">{_esc(sources)}</a>')
 
-        parts.append("\n".join(block))
+        # Пустая строка между всеми частями пункта: в Telegram нет отступов,
+        # и без неё заголовок, текст, цитата и ссылка слипаются в стену
+        parts.append("\n\n".join(block))
         parts.append("")
     return parts
 
@@ -159,30 +157,3 @@ def send_to_telegram(text: str) -> None:
             resp.raise_for_status()
 
     log.info("Дайджест отправлен в Telegram")
-
-
-def send_file(path, caption: str = "") -> None:
-    """Отправляет HTML-версию файлом.
-
-    Не критично для доставки: если файл не ушёл, текстовый дайджест уже
-    получен, поэтому исключение здесь не роняет прогон.
-    """
-    token, chat_id = _credentials()
-    url = f"https://api.telegram.org/bot{token}/sendDocument"
-
-    try:
-        with open(path, "rb") as handle:
-            files = {"document": (path.name, handle, "text/html")}
-            data = {"chat_id": chat_id, "caption": caption}
-            with httpx.Client(timeout=60) as client:
-                resp = client.post(url, data=data, files=files)
-
-        if resp.status_code != 200:
-            log.error("Файл не отправлен, Telegram вернул %s: %s",
-                      resp.status_code, resp.text)
-            return
-    except Exception as exc:
-        log.error("Файл не отправлен: %s", exc)
-        return
-
-    log.info("HTML-версия отправлена файлом")

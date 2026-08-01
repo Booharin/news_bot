@@ -129,10 +129,10 @@ def main() -> int:
         log.exception("Отправка не удалась")
         return 1
 
-    # Файл — приятное дополнение, его неудача не должна ломать прогон
+    # HTML складываем в архив на диске, но в Telegram не отправляем:
+    # файлом это неудобно, а для ссылки нужен веб-сервер
     if top or startups:
-        path = html_report.save(top, startups, extras)
-        deliver.send_file(path, caption="Та же подборка в читаемом виде")
+        html_report.save(top, startups, extras)
 
     # Помечаем отправленное только после успешной доставки
     sent = top + startups
