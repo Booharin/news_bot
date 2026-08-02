@@ -141,17 +141,15 @@ def test_html_report_renders_both_sections() -> None:
 
 
 def test_telegram_item_layout() -> None:
+    """Номер — ссылка (единственный способ получить цвет), строки слитно."""
     news = item("a", "https://example.com/a", "TechCrunch")
     news.card = {"headline": "Заголовок", "what": "Текст.", "why": "Важно."}
 
     text = deliver.format_digest([news])
 
-    assert "<b>01  Заголовок</b>" in text
+    assert '<a href="https://example.com/a">01</a>  <b>Заголовок</b>' in text
     assert "<blockquote>Почему важно: Важно.</blockquote>" in text
-
-    # Между заголовком, текстом, цитатой и ссылкой — пустая строка
-    assert "<b>01  Заголовок</b>\n\nТекст.\n\n<blockquote>" in text
-    assert "</blockquote>\n\n<a href=" in text
+    assert "<b>Заголовок</b>\nТекст.\n<blockquote>" in text
 
 
 def test_format_survives_missing_sections() -> None:
@@ -177,8 +175,8 @@ def test_format_renders_two_sections() -> None:
     assert "ГЛАВНОЕ" in text
     assert "СТАРТАПЫ И НОВЫЕ ИДЕИ" in text
     # Нумерация сквозная: второй раздел продолжает первый
-    assert "<b>01  Главная новость</b>" in text
-    assert "<b>02  Новый стартап</b>" in text
+    assert "<b>Главная новость</b>" in text
+    assert '<a href="https://example.com/b">02</a>' in text
 
 
 def test_blocked_domains_cover_subdomains() -> None:
@@ -239,7 +237,7 @@ def test_format_escapes_html() -> None:
     assert "&lt;Foo&gt;" in text, "угловые скобки не экранированы"
     assert "&amp;" in text, "амперсанд не экранирован"
     assert "Почему важно" not in text, "пустое why не должно печататься"
-    assert "<b>01  Компания &lt;Foo&gt; купила Bar</b>" in text
+    assert "<b>Компания &lt;Foo&gt; купила Bar</b>" in text
 
 
 def test_format_empty_digest() -> None:
