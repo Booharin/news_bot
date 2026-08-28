@@ -87,7 +87,9 @@ RSS_FEEDS = [
     ("TechCrunch Venture", "https://techcrunch.com/category/venture/feed/"),
     ("EU-Startups", "https://www.eu-startups.com/feed/"),
     ("Tech.eu", "https://tech.eu/feed/"),
-    ("Product Hunt", "https://www.producthunt.com/feed"),
+    # Product Hunt убран: лента отдаётся, но сами страницы товаров закрыты
+    # от ботов (403), текст не вытащить и карточка не пишется — только
+    # впустую тратились токены на скоринг.
     ("Y Combinator Blog", "https://www.ycombinator.com/blog/rss"),
     ("TechCrunch Fintech", "https://techcrunch.com/category/fintech/feed/"),
 
