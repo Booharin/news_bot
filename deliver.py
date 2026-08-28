@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 import logging
 import os
+import time
 from datetime import datetime
 
 import httpx
@@ -15,6 +16,10 @@ log = logging.getLogger(__name__)
 
 # Лимит Telegram — 4096 символов на сообщение, берём с запасом
 MAX_MESSAGE = 3800
+
+# Пауза между сообщениями. Telegram допускает примерно одно в секунду на чат,
+# берём с небольшим запасом — весь выпуск уйдёт меньше чем за минуту.
+SEND_DELAY = 1.2
 
 MONTHS = [
     "января", "февраля", "марта", "апреля", "мая", "июня",
@@ -35,40 +40,39 @@ def _plural(count: int, one: str, few: str, many: str) -> str:
     return many
 
 
-def _render_items(items: list[Item], start_num: int = 1) -> list[str]:
-    parts = []
-    for num, item in enumerate(items, start=start_num):
-        card = item.card
-        url = _esc(item.url)
+def _render_item(item: Item, num: int) -> str:
+    card = item.card
+    url = _esc(item.url)
 
-        # Единственный способ получить цвет в Telegram — ссылка: клиент красит
-        # её синим. Поэтому номер сам по себе кликабельный и ведёт на статью.
-        block = [
-            f'<a href="{url}">{num:02d}</a>  <b>{_esc(card["headline"])}</b>'
-        ]
+    # Единственный способ получить цвет в Telegram — ссылка: клиент красит
+    # её синим. Поэтому номер сам по себе кликабельный и ведёт на статью.
+    block = [f'<a href="{url}">{num:02d}</a>  <b>{_esc(card["headline"])}</b>']
 
-        if card["what"]:
-            block.append(_esc(card["what"]))
-        if card["why"]:
-            # blockquote рисует вертикальную полоску слева и подложку —
-            # это весь доступный визуальный акцент
-            block.append(
-                f"<blockquote>Почему важно: {_esc(card['why'])}</blockquote>"
-            )
+    if card["what"]:
+        block.append(_esc(card["what"]))
+    if card["why"]:
+        # blockquote рисует вертикальную полоску слева и подложку —
+        # это весь доступный визуальный акцент
+        block.append(
+            f"<blockquote>Почему важно: {_esc(card['why'])}</blockquote>"
+        )
 
-        sources = ", ".join(item.all_sources[:3])
-        block.append(f'<a href="{url}">{_esc(sources)}</a>')
+    sources = ", ".join(item.all_sources[:3])
+    block.append(f'<a href="{url}">{_esc(sources)}</a>')
 
-        parts.append("\n".join(block))
-        parts.append("")
-    return parts
+    return "\n".join(block)
 
 
-def format_digest(
+def build_messages(
     items: list[Item],
     extras: list[Item] | None = None,
     startups: list[Item] | None = None,
-) -> str:
+) -> list[str]:
+    """Каждая новость — отдельное сообщение.
+
+    Так её можно переслать, процитировать или сохранить в «Избранное»
+    по отдельности, чего не позволял общий блок.
+    """
     # Оба раздела необязательны, поэтому нормализуем до списков сразу:
     # иначе len(None) роняет сборку в день, когда стартапов не нашлось
     startups = startups or []
@@ -78,36 +82,45 @@ def format_digest(
     date_str = f"{today.day} {MONTHS[today.month - 1]}"
 
     if not items and not startups:
-        return (
+        return [
             f"<b>Дайджест за {date_str}</b>\n\n"
             "Сегодня нечего показать — ничего существенного по твоим темам "
             "за сутки не вышло."
-        )
+        ]
 
     total = len(items) + len(startups)
-    parts = [
-        f"<b>☕ Дайджест за {date_str}</b>",
+    messages = [
+        f"<b>☕ Дайджест за {date_str}</b>\n"
         f"<i>{total} {_plural(total, 'материал', 'материала', 'материалов')} · "
-        f"{len(items)} в главном, {len(startups)} про стартапы</i>",
-        "",
+        f"{len(items)} в главном, {len(startups)} про стартапы</i>"
     ]
 
     if items:
-        parts.append("<b>📰 ГЛАВНОЕ</b>")
-        parts.append("")
-        parts.extend(_render_items(items))
+        messages.append("<b>📰 ГЛАВНОЕ</b>")
+        messages.extend(_render_item(item, n) for n, item in enumerate(items, 1))
 
     if startups:
-        parts.append("<b>🚀 СТАРТАПЫ И НОВЫЕ ИДЕИ</b>")
-        parts.append("")
+        messages.append("<b>🚀 СТАРТАПЫ И НОВЫЕ ИДЕИ</b>")
         # Сквозная нумерация: так понятно, сколько всего прочитано
-        parts.extend(_render_items(startups, start_num=len(items) + 1))
+        messages.extend(
+            _render_item(item, n)
+            for n, item in enumerate(startups, len(items) + 1)
+        )
 
     if extras:
         titles = "; ".join(_esc(i.title) for i in extras[:4])
-        parts.append(f"<i>Ещё мельком:</i> {titles}")
+        messages.append(f"<i>Ещё мельком:</i> {titles}")
 
-    return "\n".join(parts).strip()
+    return messages
+
+
+def format_digest(
+    items: list[Item],
+    extras: list[Item] | None = None,
+    startups: list[Item] | None = None,
+) -> str:
+    """Весь выпуск одним текстом — для --dry-run и тестов."""
+    return "\n\n".join(build_messages(items, extras, startups))
 
 
 def _split(text: str) -> list[str]:
@@ -139,23 +152,60 @@ def _credentials() -> tuple[str, str]:
     return token, chat_id
 
 
-def send_to_telegram(text: str) -> None:
+def _post(client, url: str, payload: dict) -> None:
+    """Одна отправка с обработкой лимита частоты.
+
+    Telegram отвечает 429 и полем retry_after, если сообщения идут слишком
+    часто. Ждём ровно столько, сколько просят, и повторяем.
+    """
+    for attempt in range(3):
+        resp = client.post(url, json=payload)
+        if resp.status_code == 200:
+            return
+
+        if resp.status_code == 429:
+            wait = resp.json().get("parameters", {}).get("retry_after", 5)
+            log.warning("Telegram просит подождать %s с", wait)
+            time.sleep(wait + 1)
+            continue
+
+        log.error("Telegram вернул %s: %s", resp.status_code, resp.text)
+        resp.raise_for_status()
+
+    raise RuntimeError("Telegram не принял сообщение после трёх попыток")
+
+
+def send_to_telegram(messages: list[str] | str) -> None:
+    """Отправляет выпуск по сообщению на новость.
+
+    Звук только у первого сообщения: сорок уведомлений подряд — это пытка,
+    а одно с заголовком выпуска ровно то, что нужно.
+    """
+    if isinstance(messages, str):
+        messages = [messages]
+
     token, chat_id = _credentials()
     url = f"https://api.telegram.org/bot{token}/sendMessage"
 
-    for chunk in _split(text):
-        with httpx.Client(timeout=30) as client:
-            resp = client.post(
-                url,
-                json={
-                    "chat_id": chat_id,
-                    "text": chunk,
-                    "parse_mode": "HTML",
-                    "disable_web_page_preview": True,
-                },
-            )
-        if resp.status_code != 200:
-            log.error("Telegram вернул %s: %s", resp.status_code, resp.text)
-            resp.raise_for_status()
+    sent = 0
+    with httpx.Client(timeout=30) as client:
+        for index, message in enumerate(messages):
+            for chunk in _split(message):
+                _post(
+                    client,
+                    url,
+                    {
+                        "chat_id": chat_id,
+                        "text": chunk,
+                        "parse_mode": "HTML",
+                        "disable_web_page_preview": True,
+                        "disable_notification": index > 0,
+                    },
+                )
+                sent += 1
+                # Telegram держит примерно одно сообщение в секунду на чат;
+                # без паузы пачка из сорока штук упрётся в 429
+                if index < len(messages) - 1:
+                    time.sleep(SEND_DELAY)
 
-    log.info("Дайджест отправлен в Telegram")
+    log.info("Отправлено сообщений в Telegram: %d", sent)

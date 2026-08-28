@@ -164,6 +164,33 @@ def test_format_survives_missing_sections() -> None:
     assert "ГЛАВНОЕ" not in text
 
 
+def test_each_item_is_a_separate_message() -> None:
+    news = item("a", "https://example.com/a", "TechCrunch")
+    news.card = {"headline": "Главная", "what": "Текст.", "why": "Важно."}
+    su = item("b", "https://example.com/b", "Show HN")
+    su.card = {"headline": "Стартап", "what": "Текст.", "why": ""}
+
+    messages = deliver.build_messages([news], None, [su])
+
+    # шапка + заголовок раздела + новость + заголовок раздела + новость
+    assert len(messages) == 5
+    assert "Дайджест за" in messages[0]
+    assert "ГЛАВНОЕ" in messages[1]
+    assert "Главная" in messages[2]
+    assert "СТАРТАПЫ" in messages[3]
+    assert "Стартап" in messages[4]
+
+    # Каждая новость самодостаточна: в ней есть ссылка на источник
+    assert 'href="https://example.com/a"' in messages[2]
+    assert 'href="https://example.com/b"' in messages[4]
+
+
+def test_empty_digest_is_one_message() -> None:
+    messages = deliver.build_messages([], None, None)
+    assert len(messages) == 1
+    assert "нечего показать" in messages[0]
+
+
 def test_format_renders_two_sections() -> None:
     news = item("a", "https://example.com/a", "TechCrunch")
     news.card = {"headline": "Главная новость", "what": "Текст.", "why": ""}

@@ -114,17 +114,18 @@ def main() -> int:
         log.exception("Дайджест не собрался")
         return 1
 
-    text = deliver.format_digest(top, extras, startups)
+    messages = deliver.build_messages(top, extras, startups)
 
     if args.dry_run:
-        print("\n" + text + "\n")
+        print("\n" + "\n\n".join(messages) + "\n")
+        log.info("Сообщений к отправке: %d", len(messages))
         if top or startups:
             path = html_report.save(top, startups, extras)
             log.info("HTML-версия сохранена: %s", path)
         return 0
 
     try:
-        deliver.send_to_telegram(text)
+        deliver.send_to_telegram(messages)
     except Exception:
         log.exception("Отправка не удалась")
         return 1
