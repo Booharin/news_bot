@@ -120,12 +120,20 @@ def collect_rss(cutoff: datetime) -> list[Item]:
 # -------------------------------------------------------------- Hacker News
 
 
-def _fetch_hn(tags: str, min_points: int, cutoff: datetime) -> list[Item]:
+def _fetch_hn(
+    tags: str,
+    min_points: int,
+    cutoff: datetime,
+    query: str = "",
+    hits: int | None = None,
+) -> list[Item]:
     params = {
         "tags": tags,
         "numericFilters": f"created_at_i>{int(cutoff.timestamp())},points>{min_points}",
-        "hitsPerPage": config.HN_MAX_STORIES,
+        "hitsPerPage": hits or config.HN_MAX_STORIES,
     }
+    if query:
+        params["query"] = query
     try:
         with httpx.Client(
             timeout=config.HTTP_TIMEOUT,
@@ -175,6 +183,36 @@ def collect_hn(cutoff: datetime) -> list[Item]:
     return stories + show
 
 
+def collect_hn_keywords(cutoff: datetime) -> list[Item]:
+    """Поиск по ключевым словам — канал для инди-темы.
+
+    Обычные медиа про доходы одиночных разработчиков не пишут, а на HN это
+    регулярный жанр. Порог очков низкий: такие посты редко набирают много
+    апвоутов, но именно они нужны.
+    """
+    found: list[Item] = []
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures = {
+            pool.submit(
+                _fetch_hn,
+                "story",
+                config.HN_KEYWORD_MIN_POINTS,
+                cutoff,
+                query=query,
+                hits=config.HN_KEYWORD_HITS,
+            ): query
+            for query in config.HN_KEYWORD_QUERIES
+        }
+        for future, query in futures.items():
+            items = future.result()
+            if items:
+                log.info("HN  запрос %-22s %d свежих", f'"{query}"', len(items))
+            found.extend(items)
+
+    return found
+
+
 # -------------------------------------------------------------------- всё
 
 
@@ -182,7 +220,7 @@ def collect_all() -> list[Item]:
     cutoff = _cutoff()
     log.info("Собираю новости после %s UTC", cutoff.strftime("%Y-%m-%d %H:%M"))
 
-    items = collect_rss(cutoff) + collect_hn(cutoff)
+    items = collect_rss(cutoff) + collect_hn(cutoff) + collect_hn_keywords(cutoff)
 
     # Схлопываем совпадения по точному URL — до умной дедупликации
     by_url: dict[str, Item] = {}

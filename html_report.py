@@ -16,12 +16,12 @@ MONTHS = [
 CSS = """
 :root {
   --bg:#faf9f7; --ink:#1c1a17; --muted:#6b6660; --line:#e6e2dc;
-  --accent:#b4552d; --accent2:#2f6f5e; --why-bg:#f5f2ec;
+  --accent:#b4552d; --accent2:#2f6f5e; --accent3:#6a4c93; --why-bg:#f5f2ec;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg:#161513; --ink:#eae7e1; --muted:#9a948b; --line:#302e2a;
-    --accent:#e0885c; --accent2:#6fb6a0; --why-bg:#26241f;
+    --accent:#e0885c; --accent2:#6fb6a0; --accent3:#b39ddb; --why-bg:#26241f;
   }
 }
 *{box-sizing:border-box}
@@ -36,15 +36,18 @@ h1{margin:0;font-size:40px;line-height:1.1;letter-spacing:-.02em;font-weight:700
   text-transform:uppercase;color:var(--muted);padding-bottom:10px;
   border-bottom:1px solid var(--line)}
 .section.startups{color:var(--accent2)}
+.section.indie{color:var(--accent3)}
 article{padding:28px 0;border-bottom:1px solid var(--line)}
 .num{display:inline-block;font-size:13px;font-weight:700;letter-spacing:.08em;
   color:var(--accent);margin-bottom:6px}
 .startups-block .num{color:var(--accent2)}
+.indie-block .num{color:var(--accent3)}
 h2{margin:0 0 12px;font-size:21px;line-height:1.32;letter-spacing:-.01em;font-weight:650}
 p{margin:0 0 14px}
 .why{background:var(--why-bg);border-left:3px solid var(--accent);padding:12px 16px;
   margin:0 0 14px;border-radius:0 6px 6px 0;font-size:16px}
 .startups-block .why{border-left-color:var(--accent2)}
+.indie-block .why{border-left-color:var(--accent3)}
 .why b{font-weight:650}
 .src a{color:var(--muted);font-size:14px;text-decoration:none;
   border-bottom:1px solid var(--line);padding-bottom:1px}
@@ -91,33 +94,46 @@ def _article(item: Item, num: int) -> str:
 
 
 def render(
-    items: list[Item], startups: list[Item], extras: list[Item] | None = None
+    items: list[Item],
+    startups: list[Item],
+    extras: list[Item] | None = None,
+    indie: list[Item] | None = None,
 ) -> str:
+    indie = indie or []
     today = datetime.now()
     date_str = f"{today.day} {MONTHS[today.month - 1]}"
-    total = len(items) + len(startups)
+    total = len(items) + len(startups) + len(indie)
 
     body = [
         "<header>",
         f"  <h1>Дайджест за {date_str}</h1>",
         f'  <div class="sub">{total} '
         f"{_plural(total, 'материал', 'материала', 'материалов')} · "
-        f"{len(items)} в главном, {len(startups)} про стартапы</div>",
+        f"{len(items)} в главном, {len(startups)} про стартапы, "
+        f"{len(indie)} про инди</div>",
         "</header>",
     ]
 
+    number = 1
+
     if items:
         body.append('<div class="section">Главное</div>')
-        body.extend(_article(item, num) for num, item in enumerate(items, 1))
+        body.extend(_article(item, n) for n, item in enumerate(items, number))
+        number += len(items)
 
     if startups:
         body.append('<div class="section startups">Стартапы и новые идеи</div>')
         body.append('<div class="startups-block">')
-        body.extend(
-            _article(item, num)
-            for num, item in enumerate(startups, len(items) + 1)
-        )
+        body.extend(_article(item, n) for n, item in enumerate(startups, number))
         body.append("</div>")
+        number += len(startups)
+
+    if indie:
+        body.append('<div class="section indie">Инди и заработок на продуктах</div>')
+        body.append('<div class="indie-block">')
+        body.extend(_article(item, n) for n, item in enumerate(indie, number))
+        body.append("</div>")
+        number += len(indie)
 
     footer = []
     if extras:
@@ -149,6 +165,7 @@ def save(
     items: list[Item],
     startups: list[Item],
     extras: list[Item] | None = None,
+    indie: list[Item] | None = None,
     directory: Path | None = None,
 ) -> Path:
     """Пишет HTML на диск и возвращает путь. Имя с датой — архив сам собой."""
@@ -156,5 +173,5 @@ def save(
     directory.mkdir(parents=True, exist_ok=True)
 
     path = directory / f"digest-{datetime.now():%Y-%m-%d}.html"
-    path.write_text(render(items, startups, extras), encoding="utf-8")
+    path.write_text(render(items, startups, extras, indie), encoding="utf-8")
     return path

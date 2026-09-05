@@ -67,6 +67,7 @@ def build_messages(
     items: list[Item],
     extras: list[Item] | None = None,
     startups: list[Item] | None = None,
+    indie: list[Item] | None = None,
 ) -> list[str]:
     """Каждая новость — отдельное сообщение.
 
@@ -76,36 +77,48 @@ def build_messages(
     # Оба раздела необязательны, поэтому нормализуем до списков сразу:
     # иначе len(None) роняет сборку в день, когда стартапов не нашлось
     startups = startups or []
+    indie = indie or []
     items = items or []
 
     today = datetime.now()
     date_str = f"{today.day} {MONTHS[today.month - 1]}"
 
-    if not items and not startups:
+    if not items and not startups and not indie:
         return [
             f"<b>Дайджест за {date_str}</b>\n\n"
             "Сегодня нечего показать — ничего существенного по твоим темам "
             "за сутки не вышло."
         ]
 
-    total = len(items) + len(startups)
+    total = len(items) + len(startups) + len(indie)
     messages = [
         f"<b>☕ Дайджест за {date_str}</b>\n"
         f"<i>{total} {_plural(total, 'материал', 'материала', 'материалов')} · "
-        f"{len(items)} в главном, {len(startups)} про стартапы</i>"
+        f"{len(items)} в главном, {len(startups)} про стартапы, "
+        f"{len(indie)} про инди</i>"
     ]
+
+    # Сквозная нумерация через все разделы: видно общий объём прочитанного
+    number = 1
 
     if items:
         messages.append("<b>📰 ГЛАВНОЕ</b>")
-        messages.extend(_render_item(item, n) for n, item in enumerate(items, 1))
+        messages.extend(_render_item(item, n) for n, item in enumerate(items, number))
+        number += len(items)
 
     if startups:
         messages.append("<b>🚀 СТАРТАПЫ И НОВЫЕ ИДЕИ</b>")
-        # Сквозная нумерация: так понятно, сколько всего прочитано
         messages.extend(
-            _render_item(item, n)
-            for n, item in enumerate(startups, len(items) + 1)
+            _render_item(item, n) for n, item in enumerate(startups, number)
         )
+        number += len(startups)
+
+    if indie:
+        messages.append("<b>💰 ИНДИ И ЗАРАБОТОК НА ПРОДУКТАХ</b>")
+        messages.extend(
+            _render_item(item, n) for n, item in enumerate(indie, number)
+        )
+        number += len(indie)
 
     if extras:
         titles = "; ".join(_esc(i.title) for i in extras[:4])
@@ -118,9 +131,10 @@ def format_digest(
     items: list[Item],
     extras: list[Item] | None = None,
     startups: list[Item] | None = None,
+    indie: list[Item] | None = None,
 ) -> str:
     """Весь выпуск одним текстом — для --dry-run и тестов."""
-    return "\n\n".join(build_messages(items, extras, startups))
+    return "\n\n".join(build_messages(items, extras, startups, indie))
 
 
 def _split(text: str) -> list[str]:

@@ -85,21 +85,26 @@ def test_junk_filter_keeps_real_news() -> None:
         assert not collect._is_junk(title), f"ложное срабатывание: {title}"
 
 
-def _scored(title: str, score_value: float, startup: bool) -> Item:
+def _scored(
+    title: str, score_value: float, startup: bool, indie: bool = False
+) -> Item:
     news = item(title, f"https://x.com/{title}", "TechCrunch")
     news.score = score_value
     news.is_startup = startup
+    news.is_indie = indie
     return news
 
 
 def test_sections_do_not_overlap() -> None:
-    """Раздел про стартапы добавляет новости, а не повторяет главное."""
+    """Тематические разделы добавляют новости, а не повторяют главное."""
     import score
 
     items = [_scored(f"big{i}", 9.0, False) for i in range(5)]
     items += [_scored(f"su{i}", 8.0, True) for i in range(10)]
 
-    main, startups = score.split_digest(items, main_size=10, startup_size=10)
+    main, startups, indie = score.split_digest(
+        items, main_size=10, startup_size=10, indie_size=5
+    )
 
     assert len(main) == 10
     main_urls = {i.url for i in main}
@@ -107,16 +112,40 @@ def test_sections_do_not_overlap() -> None:
     # 5 стартапов попали в главное, ещё 5 остались на второй раздел
     assert len(startups) == 5
     assert all(i.is_startup for i in startups)
+    assert indie == []
 
 
-def test_startup_section_empty_when_no_startups() -> None:
+def test_indie_wins_over_startups_on_overlap() -> None:
+    """Новость, размеченная и как стартап, и как инди, идёт в инди-раздел.
+
+    Иначе весь инди-контент осел бы в разделе про стартапы, а третий
+    раздел остался бы пустым.
+    """
+    import score
+
+    items = [_scored("both", 8.0, startup=True, indie=True)]
+    items += [_scored(f"su{i}", 7.0, startup=True) for i in range(3)]
+
+    main, startups, indie = score.split_digest(
+        items, main_size=0, startup_size=10, indie_size=10
+    )
+
+    assert [i.title for i in indie] == ["both"]
+    assert "both" not in [i.title for i in startups]
+    assert len(startups) == 3
+
+
+def test_sections_empty_when_nothing_matches() -> None:
     import score
 
     items = [_scored(f"big{i}", 9.0, False) for i in range(10)]
-    main, startups = score.split_digest(items, main_size=5, startup_size=10)
+    main, startups, indie = score.split_digest(
+        items, main_size=5, startup_size=10, indie_size=10
+    )
 
     assert len(main) == 5
     assert startups == []
+    assert indie == []
 
 
 def test_html_report_renders_both_sections() -> None:
@@ -162,6 +191,29 @@ def test_format_survives_missing_sections() -> None:
     text = deliver.format_digest([], None, [su])
     assert "СТАРТАПЫ" in text
     assert "ГЛАВНОЕ" not in text
+
+
+def test_three_sections_render() -> None:
+    def carded(name, url, source):
+        news = item(name, url, source)
+        news.card = {"headline": name, "what": "Текст.", "why": ""}
+        return news
+
+    main = [carded("Главная", "https://example.com/a", "TechCrunch")]
+    su = [carded("Стартап", "https://example.com/b", "Show HN")]
+    ind = [carded("Инди", "https://example.com/c", "Hacker News")]
+
+    text = deliver.format_digest(main, None, su, ind)
+
+    assert "ГЛАВНОЕ" in text
+    assert "СТАРТАПЫ И НОВЫЕ ИДЕИ" in text
+    assert "ИНДИ И ЗАРАБОТОК НА ПРОДУКТАХ" in text
+
+    # Нумерация сквозная через все три раздела
+    assert '<a href="https://example.com/a">01</a>' in text
+    assert '<a href="https://example.com/b">02</a>' in text
+    assert '<a href="https://example.com/c">03</a>' in text
+    assert "3 материала" in text
 
 
 def test_each_item_is_a_separate_message() -> None:

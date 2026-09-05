@@ -37,12 +37,12 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 log = logging.getLogger("digest")
 
 
-def build_digest() -> tuple[list, list, list]:
-    """Возвращает (главное, стартапы, короткие упоминания)."""
+def build_digest() -> tuple[list, list, list, list]:
+    """Возвращает (главное, стартапы, инди, короткие упоминания)."""
     items = collect.collect_all()
     if not items:
         log.warning("Источники ничего не вернули")
-        return [], [], []
+        return [], [], [], []
 
     items = dedupe.deduplicate(items)
 
@@ -56,27 +56,31 @@ def build_digest() -> tuple[list, list, list]:
 
     shortlist = score.score_items(items)
     if not shortlist:
-        return [], [], []
+        return [], [], [], []
 
     # Второй проход по дублям: склейка по словам не ловит статьи об одном
     # событии с непохожими заголовками
     shortlist = score.merge_related(shortlist)
 
-    top, startups = score.split_digest(
-        shortlist, config.DIGEST_SIZE, config.STARTUP_SECTION_SIZE
+    top, startups, indie = score.split_digest(
+        shortlist,
+        config.DIGEST_SIZE,
+        config.STARTUP_SECTION_SIZE,
+        config.INDIE_SECTION_SIZE,
     )
 
-    chosen = {i.url for i in top} | {i.url for i in startups}
+    chosen = {i.url for i in top + startups + indie}
     extras = [i for i in shortlist if i.url not in chosen][:4]
 
-    # Карточки для обоих разделов одним заходом — так параллелизм эффективнее
-    written = summarize.write_cards(top + startups)
+    # Карточки для всех разделов одним заходом — так параллелизм эффективнее
+    written = summarize.write_cards(top + startups + indie)
     written_urls = {i.url for i in written}
     top = [i for i in top if i.url in written_urls]
     startups = [i for i in startups if i.url in written_urls]
+    indie = [i for i in indie if i.url in written_urls]
 
     summarize.translate_titles(extras)
-    return top, startups, extras
+    return top, startups, indie, extras
 
 
 def main() -> int:
@@ -109,18 +113,18 @@ def main() -> int:
         return 0
 
     try:
-        top, startups, extras = build_digest()
+        top, startups, indie, extras = build_digest()
     except Exception:
         log.exception("Дайджест не собрался")
         return 1
 
-    messages = deliver.build_messages(top, extras, startups)
+    messages = deliver.build_messages(top, extras, startups, indie)
 
     if args.dry_run:
         print("\n" + "\n\n".join(messages) + "\n")
         log.info("Сообщений к отправке: %d", len(messages))
-        if top or startups:
-            path = html_report.save(top, startups, extras)
+        if top or startups or indie:
+            path = html_report.save(top, startups, extras, indie)
             log.info("HTML-версия сохранена: %s", path)
         return 0
 
@@ -132,11 +136,11 @@ def main() -> int:
 
     # HTML складываем в архив на диске, но в Telegram не отправляем:
     # файлом это неудобно, а для ссылки нужен веб-сервер
-    if top or startups:
-        html_report.save(top, startups, extras)
+    if top or startups or indie:
+        html_report.save(top, startups, extras, indie)
 
     # Помечаем отправленное только после успешной доставки
-    sent = top + startups
+    sent = top + startups + indie
     pairs = [(i.url, dedupe.normalize_title(i.title)) for i in sent]
     for item in sent:
         for dup in item.duplicates:
@@ -145,7 +149,10 @@ def main() -> int:
     storage.prune()
 
     log.info(
-        "Готово: %d в главном, %d про стартапы", len(top), len(startups)
+        "Готово: %d в главном, %d про стартапы, %d про инди",
+        len(top),
+        len(startups),
+        len(indie),
     )
     return 0
 
