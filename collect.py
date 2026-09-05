@@ -73,6 +73,15 @@ def _fetch_feed(name: str, url: str, cutoff: datetime) -> list[Item]:
             headers={"User-Agent": config.USER_AGENT},
         ) as client:
             resp = client.get(url)
+
+            # Одна повторная попытка при 429: Reddit нередко отбивает первый
+            # запрос, но пропускает следующий через указанную паузу
+            if resp.status_code == 429:
+                wait = float(resp.headers.get("Retry-After", 5))
+                log.info("RSS %s: 429, жду %.0f с и повторяю", name, wait)
+                time.sleep(min(wait, 30) + 1)
+                resp = client.get(url)
+
             resp.raise_for_status()
             parsed = feedparser.parse(resp.content)
     except Exception as exc:
