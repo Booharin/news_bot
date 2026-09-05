@@ -95,24 +95,45 @@ def _scored(
     return news
 
 
-def test_sections_do_not_overlap() -> None:
-    """Тематические разделы добавляют новости, а не повторяют главное."""
+def test_sections_split_by_topic() -> None:
+    """Разделы не пересекаются и делятся по теме, а не по баллу."""
     import score
 
-    items = [_scored(f"big{i}", 9.0, False) for i in range(5)]
-    items += [_scored(f"su{i}", 8.0, True) for i in range(10)]
+    # У стартапов баллы выше — но в «Главное» они всё равно не попадут
+    items = [_scored(f"big{i}", 6.0, False) for i in range(5)]
+    items += [_scored(f"su{i}", 9.0, True) for i in range(10)]
 
     main, startups, indie = score.split_digest(
         items, main_size=10, startup_size=10, indie_size=5
     )
 
-    assert len(main) == 10
-    main_urls = {i.url for i in main}
-    assert all(i.url not in main_urls for i in startups), "раздел дублирует главное"
-    # 5 стартапов попали в главное, ещё 5 остались на второй раздел
-    assert len(startups) == 5
-    assert all(i.is_startup for i in startups)
+    assert len(main) == 5, "в главное просочились стартапы"
+    assert all(not i.is_startup and not i.is_indie for i in main)
+    assert len(startups) == 10
     assert indie == []
+
+    urls = [i.url for i in main + startups + indie]
+    assert len(urls) == len(set(urls)), "новость попала в два раздела"
+
+
+def test_strong_indie_story_goes_to_indie_section() -> None:
+    """Инди-история с высоким баллом не должна оседать в «Главном».
+
+    Ровно этот случай ломал прежнюю схему: «сервис вышел на $5,6 тыс. в месяц»
+    набирал высокий балл и уезжал в «Главное», а в инди-раздел попадали
+    объедки вроде виртуального аквариума.
+    """
+    import score
+
+    items = [_scored("esim 5600 в месяц", 9.0, startup=False, indie=True)]
+    items += [_scored(f"ai{i}", 8.0, startup=False) for i in range(10)]
+
+    main, startups, indie = score.split_digest(
+        items, main_size=10, startup_size=10, indie_size=10
+    )
+
+    assert [i.title for i in indie] == ["esim 5600 в месяц"]
+    assert "esim 5600 в месяц" not in [i.title for i in main]
 
 
 def test_indie_wins_over_startups_on_overlap() -> None:

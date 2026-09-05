@@ -109,13 +109,24 @@ def _fetch_feed(name: str, url: str, cutoff: datetime) -> list[Item]:
 
 
 def collect_rss(cutoff: datetime) -> list[Item]:
-    """Обходит все ленты параллельно — иначе 25 лент это минуты ожидания."""
+    """Обходит ленты параллельно — иначе три десятка лент это минуты ожидания.
+
+    Reddit исключение: на четыре одновременных запроса он отвечает 429, поэтому
+    его ленты берём по одной с паузой. Это добавляет несколько секунд, зато
+    вместо одного сабреддита из четырёх приходят все.
+    """
+    reddit = [(n, u) for n, u in config.RSS_FEEDS if "reddit.com" in u]
+    others = [(n, u) for n, u in config.RSS_FEEDS if "reddit.com" not in u]
+
     items: list[Item] = []
     with ThreadPoolExecutor(max_workers=10) as pool:
         futures = [
-            pool.submit(_fetch_feed, name, url, cutoff)
-            for name, url in config.RSS_FEEDS
+            pool.submit(_fetch_feed, name, url, cutoff) for name, url in others
         ]
+        for name, url in reddit:
+            items.extend(_fetch_feed(name, url, cutoff))
+            time.sleep(config.REDDIT_DELAY)
+
         for future in futures:
             items.extend(future.result())
     return items
