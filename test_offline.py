@@ -290,6 +290,53 @@ def test_blocked_domains_cover_subdomains() -> None:
     assert not collect._is_blocked("https://www.reddit.com/r/SideProject/x")
 
 
+def test_feed_text_wins_over_short_extract() -> None:
+    """Со страниц Reddit trafilatura отдаёт огрызок — берём текст из ленты.
+
+    Ровно на этом терялись лучшие инди-посты: огрызок был непустой, поэтому
+    описание из ленты не использовалось, и пост выбрасывался как «нет текста».
+    """
+    import summarize
+
+    post = item("I sold a microSaaS for $5,500", "https://www.reddit.com/r/x/1",
+                "r/microsaas")
+    post.summary = "Подробный разбор сделки. " * 40
+
+    original = summarize.trafilatura.extract
+    original_client = summarize.httpx.Client
+    try:
+        class FakeResp:
+            text = "<html>r/microsaas</html>"
+            status_code = 200
+
+            def raise_for_status(self):
+                return None
+
+        class FakeClient:
+            def __init__(self, *a, **kw):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def get(self, url):
+                return FakeResp()
+
+        summarize.httpx.Client = FakeClient
+        summarize.trafilatura.extract = lambda *a, **kw: "r/microsaas"
+
+        summarize._fetch_article(post)
+
+        assert len(post.article_text) > summarize.MIN_ARTICLE_CHARS
+        assert "разбор сделки" in post.article_text
+    finally:
+        summarize.trafilatura.extract = original
+        summarize.httpx.Client = original_client
+
+
 def test_clean_decodes_entities() -> None:
     # Ленты отдают мнемоники, в дайджест они попадать не должны
     assert "’" in collect._clean("Nanoleaf&#8217;s kit")

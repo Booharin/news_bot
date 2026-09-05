@@ -129,10 +129,11 @@ RSS_FEEDS = [
     # Reddit — основная площадка жанра: на HN такие посты редки, а здесь
     # их десятки в день. Лента отдаёт текст поста прямо в описании, поэтому
     # страницу скачивать не нужно. Работает только с браузерным User-Agent.
+    # Только два сабреддита: r/indiehackers и r/SaaS стабильно упирались
+    # в 429 даже с паузой и повтором, а эти два дают около 40 постов в день —
+    # больше, чем нужно. Каждый дополнительный лишь увеличивает риск отказа.
     ("r/SideProject", "https://www.reddit.com/r/SideProject/.rss"),
     ("r/microsaas", "https://www.reddit.com/r/microsaas/.rss"),
-    ("r/indiehackers", "https://www.reddit.com/r/indiehackers/.rss"),
-    ("r/SaaS", "https://www.reddit.com/r/SaaS/.rss"),
 
     # AI
     ("OpenAI", "https://openai.com/news/rss.xml"),

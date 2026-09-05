@@ -72,12 +72,15 @@ def _fetch_article(item: Item) -> None:
         log.warning("Не скачал %s: %s", item.url, exc)
         item.article_text = ""
 
-    if not item.article_text:
-        # Заглушка со ссылкой на обсуждение — не текст статьи, а мусор
-        if item.summary.startswith("Обсуждение на HN"):
-            item.article_text = ""
-        else:
-            item.article_text = item.summary
+    # Заглушка со ссылкой на обсуждение — не текст статьи, а мусор
+    fallback = "" if item.summary.startswith("Обсуждение на HN") else item.summary
+
+    # Берём то, что длиннее. Со страниц Reddit trafilatura вытаскивает
+    # огрызок вроде названия сабреддита: он непустой, поэтому прежняя
+    # проверка «если пусто — взять из ленты» не срабатывала, и посты
+    # с реальным текстом в описании выбрасывались как «нет текста».
+    if len(fallback) > len(item.article_text):
+        item.article_text = fallback[:MAX_ARTICLE_CHARS]
 
 
 def fetch_articles(items: list[Item]) -> None:
