@@ -96,7 +96,11 @@ def _fetch_feed(name: str, url: str, cutoff: datetime) -> list[Item]:
                 url=link,
                 source=name,
                 published=published,
-                summary=_clean(entry.get("summary", "")),
+                # Лимит щедрый: у Reddit в описании лежит весь текст поста,
+                # и скачивать страницу не понадобится — карточка пишется
+                # прямо отсюда. На скоринг это не влияет, там берётся
+                # только первая пара сотен символов.
+                summary=_clean(entry.get("summary", ""), limit=3000),
             )
         )
 

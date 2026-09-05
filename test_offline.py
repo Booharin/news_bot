@@ -261,10 +261,12 @@ def test_format_renders_two_sections() -> None:
 def test_blocked_domains_cover_subdomains() -> None:
     assert collect._is_blocked("https://twitter.com/a/status/1")
     assert collect._is_blocked("https://www.bloomberg.com/news/a")
-    assert collect._is_blocked("https://old.reddit.com/r/startups")
+    assert collect._is_blocked("https://news.x.com/a")
     assert not collect._is_blocked("https://techcrunch.com/2026/07/28/x")
     # Не должно ловить домены, лишь заканчивающиеся так же
-    assert not collect._is_blocked("https://notreddit.com/a")
+    assert not collect._is_blocked("https://notbloomberg.com/a")
+    # Reddit разблокирован: он теперь источник, а не мусорная ссылка
+    assert not collect._is_blocked("https://www.reddit.com/r/SideProject/x")
 
 
 def test_clean_decodes_entities() -> None:

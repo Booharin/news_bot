@@ -126,6 +126,14 @@ RSS_FEEDS = [
     ("RevenueCat Blog", "https://www.revenuecat.com/blog/rss.xml"),
     # Appfigures убран: их фид отдаёт 404, живого адреса найти не удалось.
 
+    # Reddit — основная площадка жанра: на HN такие посты редки, а здесь
+    # их десятки в день. Лента отдаёт текст поста прямо в описании, поэтому
+    # страницу скачивать не нужно. Работает только с браузерным User-Agent.
+    ("r/SideProject", "https://www.reddit.com/r/SideProject/.rss"),
+    ("r/microsaas", "https://www.reddit.com/r/microsaas/.rss"),
+    ("r/indiehackers", "https://www.reddit.com/r/indiehackers/.rss"),
+    ("r/SaaS", "https://www.reddit.com/r/SaaS/.rss"),
+
     # AI
     ("OpenAI", "https://openai.com/news/rss.xml"),
     # У Anthropic официального RSS нет. Это неофициальное зеркало от сообщества:
@@ -166,17 +174,15 @@ HN_MAX_STORIES = 120
 # Обычные техномедиа про доходы одиночных разработчиков не пишут вообще,
 # зато на HN это регулярный жанр. Порог очков низкий: такие посты интересны
 # узкой аудитории и сотню апвоутов набирают редко.
+# Список короткий по результатам замеров: составные запросы вроде
+# "solo founder" и "App Store revenue" стабильно возвращали ноль, потому что
+# на HN таких постов как отдельных историй почти нет. Оставлены только те,
+# что реально приносят материал. Основной объём по теме даёт Reddit.
 HN_KEYWORD_QUERIES = [
     "MRR",
     "bootstrapped",
-    "solo founder",
-    "indie hacker",
-    "micro SaaS",
-    "App Store revenue",
-    "side project revenue",
-    "profitable SaaS",
-    "revenue report",
-    "first paying customers",
+    "indie",
+    "solopreneur",
 ]
 # Порог почти нулевой намеренно: пост «сделал бота, вышел на $700 MRR»
 # за первые сутки редко набирает даже пять апвоутов. При пороге 4 девять
@@ -191,11 +197,12 @@ BLOCKED_DOMAINS = {
     "medium.com",
     "dev.to",
     "hackernoon.com",
-    # Соцсети: текст оттуда не вытащить, а карточка выходит пустой
+    # Соцсети: текст оттуда не вытащить, а карточка выходит пустой.
+    # Reddit исключение — он в источниках, и его RSS отдаёт текст поста
+    # прямо в ленте, скачивать страницу не требуется.
     "twitter.com",
     "x.com",
     "threads.net",
-    "reddit.com",
     # Жёсткий paywall — статью скачать не получится
     "bloomberg.com",
     "wsj.com",
