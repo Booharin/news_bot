@@ -172,7 +172,10 @@ def _fetch_hn(
             )
         )
 
-    log.info("HN  %-20s %d свежих", tags, len(items))
+    # При поиске по слову итог логирует вызывающая сторона — иначе на каждый
+    # запрос печаталась бы бесполезная строка «HN story 0 свежих»
+    if not query:
+        log.info("HN  %-20s %d свежих", tags, len(items))
     return items
 
 
@@ -204,10 +207,11 @@ def collect_hn_keywords(cutoff: datetime) -> list[Item]:
             ): query
             for query in config.HN_KEYWORD_QUERIES
         }
+        # Логируем и пустые запросы тоже: по ним видно, какие слова мертвы
+        # и что стоит заменить в HN_KEYWORD_QUERIES
         for future, query in futures.items():
             items = future.result()
-            if items:
-                log.info("HN  запрос %-22s %d свежих", f'"{query}"', len(items))
+            log.info("HN  запрос %-24s %d свежих", f'"{query}"', len(items))
             found.extend(items)
 
     return found
